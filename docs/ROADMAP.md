@@ -549,12 +549,17 @@ systems. This phase fixes that.
   demonstrates a bottle-to-crate transition with input weight 6: the
   transition waits for six tokens to accumulate before firing,
   exactly as a real packaging line works.
-- [ ] **Coloured Petri nets.** Tokens carry typed data; transitions
-  read it; routing can depend on what's *in* the token, not just on
-  whether one is present. This is the single biggest expansion of
-  what PETRA can sensibly model — most real workflows route on data
-  (loan amount, patient acuity, packet contents), not just on
-  control-flow position.
+- [x] **Coloured Petri nets** *(CPN-lite — structural layer)*.
+  Tokens carry a scalar value; transitions can have guards that
+  read input-token values; output arcs can specify the value the
+  produced token carries (constant or callable). The
+  `credit_approval_coloured` scenario routes loan applications on
+  the *amount* carried by the token, with `t_approve` and
+  `t_decline` guards declared in TOML (`{place, op, value}` form).
+  The compiler stays scalar in this first delivery — CPN-aware
+  compiler integration (the trained network reading per-token
+  values and routing on them during training) is the natural
+  follow-up.
 - [x] **Inhibitor arcs.** Declarative "fire only when this place is
   empty" guards. The compiler implements them as a multiplicative
   `(1 - a(p))` gate after firing. The `resource_lock` scenario uses

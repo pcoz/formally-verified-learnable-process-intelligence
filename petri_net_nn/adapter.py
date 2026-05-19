@@ -228,6 +228,49 @@ def _resolve(path_value: str, config_dir: Path) -> Path:
     return p if p.is_absolute() else config_dir / p
 
 
+# Map declarative guard operators (TOML-friendly strings) to actual
+# Python comparisons. Lets a scenario.toml carry a guard without
+# embedding code.
+_GUARD_OPS: dict[str, Any] = {
+    ">":  lambda a, b: a >  b,
+    ">=": lambda a, b: a >= b,
+    "<":  lambda a, b: a <  b,
+    "<=": lambda a, b: a <= b,
+    "==": lambda a, b: a == b,
+    "!=": lambda a, b: a != b,
+}
+
+
+def _build_guard(spec: dict[str, Any] | None):
+    """Turn a ``{place, op, value}`` declarative guard spec into a
+    callable suitable for ``PetriNet.add_transition(guard=...)``.
+
+    Returns ``None`` when no guard is declared, so the caller can
+    pass the result straight through to the API."""
+    if spec is None:
+        return None
+    place = spec.get("place")
+    op = spec.get("op")
+    value = spec.get("value")
+    if place is None or op is None or value is None:
+        raise ValueError(
+            f"guard spec needs 'place', 'op', and 'value' fields; got {spec}"
+        )
+    if op not in _GUARD_OPS:
+        raise ValueError(
+            f"guard op {op!r} is unsupported; use one of {sorted(_GUARD_OPS)}"
+        )
+    compare = _GUARD_OPS[op]
+    threshold = float(value)
+
+    def guard(input_values: dict[str, float]) -> bool:
+        if place not in input_values:
+            return False
+        return bool(compare(float(input_values[place]), threshold))
+
+    return guard
+
+
 def _load_net(spec: dict[str, Any], config_dir: Path) -> PetriNet:
     source = spec.get("source")
     if source == "bpmn_file":
@@ -253,15 +296,30 @@ def _load_net(spec: dict[str, Any], config_dir: Path) -> PetriNet:
             # rate = transition fires more eagerly on the same
             # inputs; useful for encoding prior knowledge about
             # transition propensity.
+            # Optional `guard` is a declarative spec
+            # ``{place, op, value}`` that builds a coloured-Petri-net
+            # guard callable (e.g. ``{place="p_in", op=">=",
+            # value=1000.0}`` fires only when the token at p_in
+            # carries a value at least 1000.0). Used by the
+            # coloured token-game; transparent to the compiler.
             net.add_transition(
                 transition["id"],
                 label=transition.get("label"),
                 duration=int(transition.get("duration", 1)),
                 rate=float(transition.get("rate", 1.0)),
+                guard=_build_guard(transition.get("guard")),
             )
         for arc in spec.get("arcs", []):
             weight = int(arc.get("weight", 1))
-            net.add_arc(arc["src"], arc["dst"], weight=weight)
+            # Optional `output_value` on transition -> place arcs sets
+            # the value carried by tokens this arc produces in the
+            # coloured token-game. Constant scalar only via TOML;
+            # callable transforms must be supplied through the
+            # Python API.
+            kwargs: dict[str, Any] = {"weight": weight}
+            if "output_value" in arc:
+                kwargs["output_value"] = float(arc["output_value"])
+            net.add_arc(arc["src"], arc["dst"], **kwargs)
         # Inhibitor arcs: [[net.inhibitor_arcs]] place = "...", transition = "..."
         # These declare a structural guard — the transition cannot fire
         # while the place holds a token. They are not part of the flow

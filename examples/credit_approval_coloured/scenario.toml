@@ -1,0 +1,65 @@
+# Coloured-token credit approval — tokens at p_submitted carry the
+# application amount; the approve / decline guards route on it.
+#
+# Showcases the Phase 9 coloured-Petri-net feature: the routing
+# decision depends on the *value* of the token (the application
+# amount), not just on its presence. In the pre-CPN substrate the
+# closest you could do was encode the amount as a place activation
+# and rely on the learned XOR routing — workable but lossy. With
+# coloured tokens the amount travels structurally and the guards
+# express the decision rule declaratively.
+#
+# Flow:
+#   p_submitted (token value = amount)
+#       -- t_approve [guard: amount >= 1000] --> p_approved
+#       -- t_decline [guard: amount <  1000] --> p_declined
+#
+# Each token represents one credit application; its value IS the
+# amount in monetary units.
+
+[scenario]
+name = "credit_approval_coloured"
+description = "Credit applications routed on token value via Phase 9 coloured-Petri-net guards."
+
+[net]
+source = "inline"
+
+[[net.places]]
+id = "p_submitted"
+label = "application submitted"
+[[net.places]]
+id = "p_approved"
+label = "application approved"
+[[net.places]]
+id = "p_declined"
+label = "application declined"
+
+[[net.transitions]]
+id = "t_approve"
+label = "approve loan"
+guard = { place = "p_submitted", op = ">=", value = 1000.0 }
+
+[[net.transitions]]
+id = "t_decline"
+label = "decline loan"
+guard = { place = "p_submitted", op = "<", value = 1000.0 }
+
+[[net.arcs]]
+src = "p_submitted"
+dst = "t_approve"
+[[net.arcs]]
+src = "t_approve"
+dst = "p_approved"
+
+[[net.arcs]]
+src = "p_submitted"
+dst = "t_decline"
+[[net.arcs]]
+src = "t_decline"
+dst = "p_declined"
+
+# No traces / training section. The Phase 9 CPN extension lives at
+# the structural token-game level; the compiler stays scalar for
+# now. CPN-aware compiler integration is on the roadmap as a
+# follow-up. The test for this scenario exercises the coloured
+# token-game directly.

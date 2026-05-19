@@ -1,15 +1,29 @@
 """Petri net data structure.
 
-A finite Petri net N = (P, T, F, M_0) plus arc multiplicities — the
-classical extension where one firing of a transition can consume
-or produce more than one token per connected place.
+A finite Petri net N = (P, T, F, M_0) plus a number of classical
+extensions: arc multiplicities (multi-token markings), inhibitor
+arcs, transition durations, firing rates, and coloured tokens
+(per-token scalar values with optional transition guards reading
+those values).
 
-Arcs without an explicit weight have weight 1, so nets built before
-multi-token markings existed behave identically.
+Every extension is sparse — entries are recorded only when they
+deviate from the trivial default, so nets that don't use the
+extension behave identically to the basic four-tuple definition.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Callable, Union
+
+# A transition guard reads the values of the tokens that would be
+# consumed (one value per input place, keyed by place id) and
+# returns True when the transition is allowed to fire.
+GuardFn = Callable[[dict[str, float]], bool]
+
+# An arc's output value — either a constant scalar or a callable
+# that produces the output value from the input-place values bound
+# at the firing transition.
+OutputValueSpec = Union[float, Callable[[dict[str, float]], float]]
 
 
 @dataclass
@@ -57,6 +71,19 @@ class PetriNet:
     # extensions, only non-default entries are stored.
     transition_rates: dict[str, float] = field(default_factory=dict)
 
+    # Coloured-Petri-net extensions. transition_guards holds optional
+    # predicates that read the values of the tokens a transition
+    # would consume and decide whether it is allowed to fire — used
+    # by fire_coloured / is_enabled_coloured. arc_output_values gives
+    # output arcs an optional value spec (constant or callable),
+    # determining the value carried by the tokens the transition
+    # produces. Both maps are sparse: a missing entry means
+    # "no guard" / "produce value 1.0".
+    transition_guards: dict[str, GuardFn] = field(default_factory=dict)
+    arc_output_values: dict[tuple[str, str], OutputValueSpec] = field(
+        default_factory=dict
+    )
+
     def add_place(self, pid: str, *, label: str | None = None, tokens: int = 0) -> None:
         self.places.add(pid)
         if label is not None:
@@ -71,6 +98,7 @@ class PetriNet:
         label: str | None = None,
         duration: int = 1,
         rate: float = 1.0,
+        guard: GuardFn | None = None,
     ) -> None:
         """Add a transition.
 
@@ -87,6 +115,14 @@ class PetriNet:
         eager. Lets the modeller encode prior knowledge about
         transition propensity (priority, stochastic rate, etc.)
         alongside the learnable weights and thresholds.
+
+        ``guard`` is an optional callable used by the coloured
+        token-game (``is_enabled_coloured`` / ``fire_coloured``).
+        It receives a dict mapping each input place to the value of
+        the token that would be consumed there and returns True
+        when the transition is allowed to fire. Guards have no
+        effect on the count-based ``is_enabled`` / ``fire`` path
+        or on the neural compiler.
         """
         if duration < 1:
             raise ValueError(
@@ -105,6 +141,8 @@ class PetriNet:
             self.transition_durations[tid] = duration
         if rate != 1.0:
             self.transition_rates[tid] = float(rate)
+        if guard is not None:
+            self.transition_guards[tid] = guard
 
     def duration(self, transition: str) -> int:
         """The transition's firing duration in time-unrolled steps.
@@ -117,7 +155,27 @@ class PetriNet:
         transitions added without an explicit rate."""
         return self.transition_rates.get(transition, 1.0)
 
-    def add_arc(self, src: str, dst: str, *, weight: int = 1) -> None:
+    def add_arc(
+        self,
+        src: str,
+        dst: str,
+        *,
+        weight: int = 1,
+        output_value: OutputValueSpec | None = None,
+    ) -> None:
+        """Add an arc.
+
+        ``weight`` is the multiplicity — how many tokens this arc
+        moves per firing (default 1).
+
+        ``output_value`` only applies to arcs *from* transitions to
+        places. It specifies the value of the token the firing
+        produces — a constant float, or a callable receiving the
+        input-place values bound at the transition and returning
+        a float. If omitted, the produced token carries value 1.0.
+        The output value only matters for the coloured token-game
+        (``fire_coloured``); count-based firing ignores it.
+        """
         if weight < 1:
             raise ValueError(
                 f"arc {src!r} -> {dst!r}: weight must be a positive integer, "
@@ -136,6 +194,13 @@ class PetriNet:
         self.flow.add((src, dst))
         if weight != 1:
             self.arc_multiplicities[(src, dst)] = weight
+        if output_value is not None:
+            if src not in self.transitions:
+                raise ValueError(
+                    f"arc {src!r} -> {dst!r}: output_value only applies to "
+                    f"transition -> place arcs (this arc starts at a place)"
+                )
+            self.arc_output_values[(src, dst)] = output_value
 
     def weight(self, src: str, dst: str) -> int:
         """How many tokens this arc moves per firing. 1 unless an
@@ -194,6 +259,80 @@ class PetriNet:
 
     def enabled_transitions(self, marking: dict[str, int]) -> set[str]:
         return {t for t in self.transitions if self.is_enabled(t, marking)}
+
+    # --- Coloured token-game ----------------------------------------------
+    # The methods below operate on a *coloured* marking — a dict whose
+    # values are lists of per-token floats (a token's "colour") rather
+    # than just an integer count. Tokens are consumed FIFO from each
+    # input place; their values are bound by input-place id and made
+    # available to (a) the transition guard, which decides whether the
+    # transition is allowed to fire, and (b) any arc output-value
+    # callables on outputs, which compute the value the produced
+    # token carries. The compiler's continuous relaxation is
+    # independent of all this — coloured tokens live at the structural
+    # token-game level for now.
+
+    def is_enabled_coloured(
+        self, transition: str, marking: dict[str, list[float]]
+    ) -> bool:
+        """Coloured-token enablement: a transition is enabled iff every
+        input place holds at least ``weight`` tokens, every inhibitor
+        place is empty, *and* the transition's guard (if any) returns
+        True for the values of the tokens that would be consumed."""
+        if transition not in self.transitions:
+            raise KeyError(transition)
+        # Token-count enablement, weighted as for the scalar token game.
+        for p in self.preset(transition):
+            if len(marking.get(p, [])) < self.weight(p, transition):
+                return False
+        # Inhibitor places must be empty for the transition to fire.
+        for p in self.inhibitor_preset(transition):
+            if len(marking.get(p, [])) > 0:
+                return False
+        # Bind input values (FIFO: the token at index 0 from each
+        # input place is the one that would be consumed first).
+        guard = self.transition_guards.get(transition)
+        if guard is None:
+            return True
+        input_values = {p: marking[p][0] for p in self.preset(transition)}
+        return bool(guard(input_values))
+
+    def fire_coloured(
+        self, transition: str, marking: dict[str, list[float]]
+    ) -> dict[str, list[float]]:
+        """Fire ``transition`` against a coloured marking. Consumes
+        ``weight`` tokens FIFO from each input place; produces tokens
+        whose values come from each output arc's ``output_value``
+        spec (constant float, or a callable receiving the bound input
+        values). Returns a new marking — the input is not mutated."""
+        if not self.is_enabled_coloured(transition, marking):
+            raise ValueError(f"transition {transition!r} is not enabled under marking")
+        new: dict[str, list[float]] = {p: list(tokens) for p, tokens in marking.items()}
+
+        # Bind the values that would be consumed — these may be needed
+        # by output-arc callables and we want to capture them BEFORE
+        # mutating the marking.
+        bound_inputs = {p: new[p][0] for p in self.preset(transition)}
+
+        for p in self.preset(transition):
+            for _ in range(self.weight(p, transition)):
+                new[p].pop(0)
+            if not new[p]:
+                del new[p]
+
+        for p in self.postset(transition):
+            spec = self.arc_output_values.get((transition, p), 1.0)
+            value = float(spec(bound_inputs) if callable(spec) else spec)
+            weight = self.weight(transition, p)
+            new.setdefault(p, []).extend([value] * weight)
+        return new
+
+    def enabled_transitions_coloured(
+        self, marking: dict[str, list[float]]
+    ) -> set[str]:
+        return {
+            t for t in self.transitions if self.is_enabled_coloured(t, marking)
+        }
 
     def validate(self) -> list[str]:
         """Return a list of structural issues. An empty list means the net
@@ -268,6 +407,24 @@ class PetriNet:
             if rate <= 0:
                 issues.append(
                     f"transition {transition!r} has non-positive rate {rate}"
+                )
+
+        for transition in self.transition_guards:
+            if transition not in self.transitions:
+                issues.append(
+                    f"guard recorded for unknown transition {transition!r}"
+                )
+
+        for (src, dst) in self.arc_output_values:
+            if (src, dst) not in self.flow:
+                issues.append(
+                    f"output value recorded for {src!r} -> {dst!r} but no "
+                    f"such arc in the flow relation"
+                )
+            elif src not in self.transitions:
+                issues.append(
+                    f"output value on arc {src!r} -> {dst!r}: only "
+                    f"transition -> place arcs may carry output values"
                 )
 
         return issues

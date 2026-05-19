@@ -280,6 +280,7 @@ Current scenarios:
 | `resource_lock/` | Phase 9 inhibitor arcs: two clients race for a single shared resource. |
 | `paint_shop/` | Phase 9 transition durations: a 3-step cure transition delays output. |
 | `priority_dispatch/` | Phase 9 stochastic firing rates: three handlers with rate priors. |
+| `credit_approval_coloured/` | Phase 9 coloured tokens: routing on the application amount carried by the token. |
 | `cost_ranked_refactoring/` | Provably-safe refactoring via Phase 2 + `expected_cost`. |
 
 ---

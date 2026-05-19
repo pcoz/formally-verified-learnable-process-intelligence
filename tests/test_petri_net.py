@@ -388,6 +388,143 @@ def test_transition_rate_rejects_non_positive_values():
         net.add_transition("t", rate=-1.0)
 
 
+# ---------------------------------------------------------------------------
+# Phase 9 — coloured Petri nets
+# ---------------------------------------------------------------------------
+
+
+def _credit_net() -> PetriNet:
+    """A credit-application net used to exercise CPN behaviour. Tokens
+    at p_submitted carry the application amount; the approve / decline
+    guards route on it."""
+    net = PetriNet()
+    net.add_place("p_submitted")
+    net.add_place("p_approved")
+    net.add_place("p_declined")
+    net.add_transition(
+        "t_approve",
+        guard=lambda inputs: inputs["p_submitted"] >= 1000.0,
+    )
+    net.add_transition(
+        "t_decline",
+        guard=lambda inputs: inputs["p_submitted"] < 1000.0,
+    )
+    # Output arcs propagate the input amount through (closure over
+    # the input dict — callable form of output_value).
+    net.add_arc("p_submitted", "t_approve")
+    net.add_arc(
+        "t_approve",
+        "p_approved",
+        output_value=lambda inputs: inputs["p_submitted"],
+    )
+    net.add_arc("p_submitted", "t_decline")
+    net.add_arc(
+        "t_decline",
+        "p_declined",
+        output_value=lambda inputs: inputs["p_submitted"],
+    )
+    return net
+
+
+def test_coloured_is_enabled_respects_guard():
+    """The approve transition only fires when the input token's value
+    is >= 1000; the decline transition only fires when it is < 1000."""
+    net = _credit_net()
+    high = {"p_submitted": [5000.0]}
+    low = {"p_submitted": [250.0]}
+    assert net.is_enabled_coloured("t_approve", high)
+    assert not net.is_enabled_coloured("t_decline", high)
+    assert not net.is_enabled_coloured("t_approve", low)
+    assert net.is_enabled_coloured("t_decline", low)
+
+
+def test_coloured_fire_routes_on_token_value():
+    """Firing approve on a high-value token produces the same value
+    at p_approved (the output arc's callable passed it through)."""
+    net = _credit_net()
+    new = net.fire_coloured("t_approve", {"p_submitted": [5000.0]})
+    assert new == {"p_approved": [5000.0]}
+
+
+def test_coloured_fire_propagates_low_amount_through_decline():
+    net = _credit_net()
+    new = net.fire_coloured("t_decline", {"p_submitted": [250.0]})
+    assert new == {"p_declined": [250.0]}
+
+
+def test_coloured_fire_consumes_FIFO_when_multiple_tokens_present():
+    """When two tokens sit at the input, the first-in token's value is
+    the one consumed (FIFO). The remaining token stays at the input."""
+    net = _credit_net()
+    new = net.fire_coloured(
+        "t_approve",
+        {"p_submitted": [3000.0, 7000.0]},
+    )
+    # First token consumed by approve; second still queued.
+    assert new["p_approved"] == [3000.0]
+    assert new["p_submitted"] == [7000.0]
+
+
+def test_coloured_fire_raises_when_not_enabled():
+    net = _credit_net()
+    with pytest.raises(ValueError, match="not enabled"):
+        net.fire_coloured("t_approve", {"p_submitted": [100.0]})
+
+
+def test_constant_output_value_on_arc():
+    """Arcs may have a constant output_value (rather than a callable)
+    to produce tokens with a fixed value regardless of input."""
+    net = PetriNet()
+    net.add_place("p_in")
+    net.add_place("p_out")
+    net.add_transition("t")
+    net.add_arc("p_in", "t")
+    net.add_arc("t", "p_out", output_value=42.0)
+    new = net.fire_coloured("t", {"p_in": [99.0]})
+    assert new == {"p_out": [42.0]}
+
+
+def test_output_value_default_is_one():
+    """An arc with no output_value annotation produces tokens with
+    the canonical default value 1.0."""
+    net = PetriNet()
+    net.add_place("p_in")
+    net.add_place("p_out")
+    net.add_transition("t")
+    net.add_arc("p_in", "t")
+    net.add_arc("t", "p_out")
+    new = net.fire_coloured("t", {"p_in": [99.0]})
+    assert new == {"p_out": [1.0]}
+
+
+def test_output_value_rejected_on_place_to_transition_arc():
+    """output_value only makes sense on transition -> place arcs; on
+    place -> transition arcs it has no semantics."""
+    net = PetriNet()
+    net.add_place("p")
+    net.add_transition("t")
+    with pytest.raises(ValueError, match="output_value only applies"):
+        net.add_arc("p", "t", output_value=1.0)
+
+
+def test_inhibitor_arc_blocks_coloured_firing_too():
+    """The inhibitor-arc semantics apply to the coloured token-game
+    identically: a transition is blocked while its inhibitor place
+    holds any tokens."""
+    net = PetriNet()
+    net.add_place("p_in")
+    net.add_place("p_guard")
+    net.add_place("p_out")
+    net.add_transition("t")
+    net.add_arc("p_in", "t")
+    net.add_arc("t", "p_out")
+    net.add_inhibitor_arc("p_guard", "t")
+    blocked = {"p_in": [1.0], "p_guard": [0.0]}  # guard has a token
+    assert not net.is_enabled_coloured("t", blocked)
+    free = {"p_in": [1.0]}  # guard is empty
+    assert net.is_enabled_coloured("t", free)
+
+
 def test_validate_flags_invalid_rate_dict_entries():
     net = PetriNet()
     net.add_place("p", tokens=1)
