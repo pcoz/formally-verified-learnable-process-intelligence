@@ -1,9 +1,11 @@
 # Distributed consensus — two-phase commit
 
-A 2PC protocol modelled as a Petri net with one coordinator and one
-participant exchanging prepare / vote / decision messages. Validates
-the framing claim that the cyclic compiler / cross-pool composition
-covers distributed consensus protocols.
+A two-phase commit protocol modelled as a Petri net with one
+coordinator and one participant exchanging prepare / vote / decision
+messages. PETRA running on a distributed consensus protocol: each
+agent is its own pool, the three message places link the pools,
+and the trained network learns the commit-vs-abort routing from the
+participant's vote attribute.
 
 ## What this scenario shows
 

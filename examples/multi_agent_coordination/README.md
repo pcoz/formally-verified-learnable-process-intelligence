@@ -1,8 +1,10 @@
 # Multi-agent coordination — contract-net protocol
 
-Three agents (one manager, two contractors) coordinate to assign and
-execute a task via the contract-net protocol. Validates the framing
-claim that the substrate covers multi-agent coordination protocols.
+Three agents — one manager, two contractors — coordinate to assign
+and execute a task via the contract-net protocol. PETRA running on a
+multi-agent coordination problem: three pools, six shared message
+places, an AND-join over both bids at the manager, and a bid-driven
+XOR routing to the winning contractor.
 
 ## What this scenario shows
 

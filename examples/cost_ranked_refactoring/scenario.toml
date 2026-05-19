@@ -1,4 +1,4 @@
-# Cost-ranked variant search — point #6 of the ROADMAP framing.
+# Cost-ranked variant search — the provably-safe-refactoring use case.
 #
 # A loan-approval process. The structural topology is identical
 # across two variants (so the bisimulation checker confirms them

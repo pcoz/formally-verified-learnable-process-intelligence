@@ -1,4 +1,4 @@
-"""Tests for the bisimulation checker (Phase 2 of ROADMAP.md).
+"""Tests for the bisimulation checker (Phase 2 of docs/ROADMAP.md).
 
 The first group of tests pins the algorithm itself — reachability graph
 construction, partition refinement, the four canonical

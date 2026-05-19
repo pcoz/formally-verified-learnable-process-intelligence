@@ -244,7 +244,21 @@ def _load_net(spec: dict[str, Any], config_dir: Path) -> PetriNet:
                 label=place.get("label"),
             )
         for transition in spec.get("transitions", []):
-            net.add_transition(transition["id"], label=transition.get("label"))
+            # Optional `duration` (default 1) lets scenarios annotate
+            # how many time-unrolled steps a transition takes to
+            # produce its output once fired. Surfaces purely in the
+            # time-unrolled compiler; ignored in acyclic mode.
+            # Optional `rate` (default 1.0) is a per-transition
+            # firing-rate multiplier on the pre-activation. High
+            # rate = transition fires more eagerly on the same
+            # inputs; useful for encoding prior knowledge about
+            # transition propensity.
+            net.add_transition(
+                transition["id"],
+                label=transition.get("label"),
+                duration=int(transition.get("duration", 1)),
+                rate=float(transition.get("rate", 1.0)),
+            )
         for arc in spec.get("arcs", []):
             weight = int(arc.get("weight", 1))
             net.add_arc(arc["src"], arc["dst"], weight=weight)

@@ -1,9 +1,8 @@
-# MAPK-like kinase signalling cascade — non-BPMN scenario validating
-# the framing claim that the substrate works on any place/transition
-# graph. Real-world-faithful: the cascade structure follows the
-# canonical MAPK cascade as described in cell-signalling literature
-# (receptor → MAPKKK → MAPKK → MAPK), simplified to a two-pathway
-# routing decision that depends on signal strength.
+# MAPK-like kinase signalling cascade — PETRA running on a biological
+# pathway. The structure follows the canonical MAPK cascade described
+# in cell-signalling literature (receptor → MAPKKK → MAPKK → MAPK),
+# simplified to a two-pathway routing decision that depends on the
+# signal strength.
 
 [scenario]
 name = "biological_signalling_cascade"

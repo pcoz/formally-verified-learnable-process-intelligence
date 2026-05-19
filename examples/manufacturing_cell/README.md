@@ -1,8 +1,10 @@
 # Manufacturing cell
 
 A two-station production line with quality-driven routing, modelled
-as a Petri net. Validates the framing claim that the substrate
-covers manufacturing cell dynamics.
+as a Petri net. PETRA running on a manufacturing cell: tokens are
+work-in-progress, station occupancy is a place holding the
+"currently busy" marker, and the inspection step routes a finished
+part to ship or rework depending on the learned quality threshold.
 
 ## What this scenario shows
 

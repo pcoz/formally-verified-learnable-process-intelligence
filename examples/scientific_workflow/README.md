@@ -1,9 +1,11 @@
 # Scientific workflow — PCR with quality gating
 
 A polymerase chain reaction (PCR) protocol with a quality-driven
-accept-vs-re-prep decision, modelled as a Petri net. Validates the
-framing claim that anomaly detection generalises to "deviation
-analysis in scientific workflows".
+accept-vs-re-prep decision, modelled as a Petri net. PETRA running
+on a laboratory protocol: the steps of the procedure are the
+transitions, the quality readout drives the routing decision, and
+procedural deviations (skipped steps, out-of-order operations) show
+up as anomaly residuals pinned to the offending step.
 
 ## What this scenario shows
 

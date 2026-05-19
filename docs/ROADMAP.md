@@ -166,6 +166,48 @@ precondition. The detector was generalised to recognise both patterns,
 and the rule extractors gained an automatic "pick the discriminative
 input" step that examines learned weight gaps across the preset.
 
+### PETRA as the analytical core of a BPMN optimisation engine
+
+Wiring the delivered phases together gives the analytical substrate
+of what a "native BPMN optimisation engine" would do — every step of
+the pipeline is in place with running tests:
+
+| Engine capability | PETRA delivers it via |
+|---|---|
+| Read a BPMN process | `parse_bpmn` (Phase 1) — tasks, gateways, boundaries, compensation, cross-pool collaborations |
+| Learn how the process actually runs from logs | `train_on_traces` over XES (Phase 1, §10 Step 3) |
+| Verify two variants are behaviourally equivalent | `are_bisimilar` (Phase 2) |
+| Distill the trained model's decisions into readable rules | `extract_routing_rules` / `extract_and_join_rules` (Phase 8) |
+| Detect deviations in production | `anomaly_score` with residuals pinned to BPMN element names (Phase 7) |
+| Rank refactorings by realised cost | `expected_cost` (Phase 6 + cost-ranked-refactoring scenario) |
+| Capacity, batching, mutex, durations, retry loops, saga compensation | Phase 3 (time-unrolling), Phase 4 (compensation), Phase 9 (multi-token, inhibitor, durations) |
+
+The `cost_ranked_refactoring` scenario already runs the full
+optimisation pipeline end to end: two BPMN variants → bisimulation
+proves them equivalent → train both on the same XES trace
+distribution → rank by realised cost. Variant B comes out roughly
+six times cheaper while doing provably the same thing.
+
+What's missing on top of PETRA before this is a productionised
+engine — and *only* the wrapper layers are missing, not the
+substrate:
+
+- **A candidate-generator** that proposes refactorings (today they
+  are hand-authored). Could be a rule-based transformation engine,
+  an LLM, or heuristic search. PETRA verifies and ranks whatever it
+  produces.
+- **Connectors to live BPMN runtimes** (Camunda, Activiti, Flowable).
+  Phase 14 on this roadmap — pulling production traces, pushing
+  trained models / anomaly signals back.
+- **A UI** — explicitly out of scope here; the consuming application
+  puts a UI on the analytical core PETRA provides.
+- **Automated structure discovery from logs** (Phase 12) — for users
+  who have logs but not a BPMN model to start with.
+
+A few hundred lines of integration code on top of the current PETRA
+would turn it into a deployable engine. Every claim in the table
+above is tested today, not aspirational.
+
 The honest framing: this isn't a "business process tool with
 interpretability." It is a general framework for learning the
 dynamics of any system whose structure can be expressed as a sound
@@ -519,11 +561,20 @@ systems. This phase fixes that.
   them to enforce a two-client mutex on a shared resource; in
   time-unrolled mode the inhibitor place fills after one step and the
   gate suppresses further firings.
-- [ ] **Stochastic firing rates.** Per-transition probabilities, for
-  throughput analysis and bottleneck detection.
-- [ ] **Transition durations.** Time on the wire. Combines with the
-  existing time-unrolled compiler from Phase 3 to give SLA-style
-  performance modelling.
+- [x] **Stochastic firing rates.** Per-transition rate multiplier
+  on the pre-activation (default 1.0). High rate fires more eagerly;
+  low rate more conservatively. Lets the modeller carry priors about
+  transition propensity through to training; the trained weights and
+  thresholds then refine on top of the prior. The `priority_dispatch`
+  scenario uses rates 3.0, 1.0, and 0.5 to declare three handlers'
+  relative dispatch priorities before training.
+- [x] **Transition durations.** A transition with duration D fired
+  at step *n* produces its output at step *n+D-1*. The compiler
+  maintains a per-transition in-flight queue in the time-unrolled
+  forward pass; the discrete token-game treats firings as atomic.
+  The `paint_shop` scenario demonstrates a cure step with duration
+  3: parts spend three time-units in the cure transition before
+  reaching the inspection place.
 
 ## Phase 10 — Connect to the rest of the world *(later)*
 

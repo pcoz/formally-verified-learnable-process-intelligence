@@ -1,9 +1,9 @@
 # Biological signalling cascade
 
-A kinase signalling cascade demonstrated as a Petri net. Validates the
-framing claim (ROADMAP.md point 2) that the substrate is not
-BPMN-specific — pathway databases like Reactome are essentially Petri
-nets.
+A kinase signalling cascade modelled as a Petri net — PETRA running
+on a biological pathway. Pathway databases such as Reactome are
+essentially Petri nets, so the same compilation, training, rule
+extraction and anomaly detection apply directly.
 
 ## What this scenario shows
 

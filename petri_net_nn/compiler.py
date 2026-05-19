@@ -289,12 +289,20 @@ class PetriNetModule(nn.Module):
     def _pre_activation(
         self, transition: str, activations: dict[str, torch.Tensor]
     ) -> torch.Tensor:
+        # Sum the weighted input-place activations for this transition.
+        # Only arcs in the flow relation contribute — there is no
+        # learnable weight outside F (§4.3 of the spec).
         weighted = sum(
             self.arc_weights[self._arc_key[(p, transition)]] * activations[p]
             for p in self.net.preset(transition)
         )
         theta = self.transition_thresholds[self._threshold_key[transition]]
-        return self.sharpness * (weighted - theta)
+        # rate is a per-transition multiplier (default 1.0); high rate
+        # = steeper firing curve. sharpness is the global multiplier.
+        # Together they scale the (weighted - threshold) gap before
+        # the sigmoid / STE.
+        rate = self.net.rate(transition)
+        return rate * self.sharpness * (weighted - theta)
 
     def _inhibitor_gate(
         self, transition: str, place_acts: dict[str, torch.Tensor]
@@ -367,6 +375,17 @@ class PetriNetModule(nn.Module):
         trans_acts: dict[str, torch.Tensor] = {
             t: torch.zeros(batch_size, device=device) for t in self.net.transitions
         }
+        # Per-transition in-flight queue for duration > 1 transitions.
+        # When a transition with duration D fires at step n, its
+        # firing activation is pushed onto in_flight[t]. The effective
+        # output that contributes to place updates at step n is the
+        # firing from D-1 steps ago — i.e. the head of the queue when
+        # it has reached length D. Until then the transition has not
+        # yet produced any output and contributes zero.
+        # Transitions with duration 1 (the default) bypass this queue.
+        in_flight: dict[str, list[torch.Tensor]] = {
+            t: [] for t in self.net.transitions
+        }
 
         for _ in range(self.num_steps):
             pre_acts: dict[str, torch.Tensor] = {
@@ -396,7 +415,29 @@ class PetriNetModule(nn.Module):
                     fired = self._fire_fn(pre)
                     gate = self._inhibitor_gate(t, place_acts)
                     new_trans[t] = fired if gate is None else fired * gate
-            trans_acts = new_trans
+
+            # Apply per-transition firing duration. For each transition
+            # with duration D > 1, the firing computed *this* step
+            # only contributes to place updates D-1 steps later. We
+            # push the just-computed firing onto an in-flight queue
+            # and emit whichever earlier firing is now mature.
+            # Transitions with duration 1 pass through unchanged.
+            trans_acts = {}
+            for t, fired in new_trans.items():
+                d = self.net.duration(t)
+                if d == 1:
+                    trans_acts[t] = fired
+                else:
+                    in_flight[t].append(fired)
+                    if len(in_flight[t]) >= d:
+                        # The firing at the head of the queue is exactly
+                        # D-1 steps old now — its time has come.
+                        trans_acts[t] = in_flight[t].pop(0)
+                    else:
+                        # Buffer not yet full: the transition is still
+                        # "in progress" and has not produced anything
+                        # observable yet.
+                        trans_acts[t] = torch.zeros_like(fired)
 
             new_places: dict[str, torch.Tensor] = {}
             for p in self.net.places:

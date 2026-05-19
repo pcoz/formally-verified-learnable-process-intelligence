@@ -281,7 +281,7 @@ def _parse_process(
         elif tag == "subProcess":
             raise ValueError(
                 f"subProcess {child.attrib['id']!r} is not supported in this "
-                f"scaffold; see ROADMAP.md Phase 4 for the deferred inline "
+                f"scaffold; see docs/ROADMAP.md Phase 4 for the deferred inline "
                 f"flattening approach"
             )
         elif tag == "boundaryEvent":

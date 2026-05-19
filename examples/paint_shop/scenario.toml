@@ -1,0 +1,144 @@
+# Paint shop with a long-running curing step — PETRA running on a
+# production line where one stage takes multiple time-units to
+# complete. Showcases the Phase 9 transition-duration feature.
+#
+# Flow:
+#   p_raw  -- t_paint    --> p_painted
+#   p_painted -- t_cure  --> p_inspected     (duration=3 — curing
+#                                              takes three time-units
+#                                              before the part is
+#                                              ready for inspection)
+#   p_inspected -- t_pass --> p_passed       (high quality_score)
+#   p_inspected -- t_fail --> p_failed       (low quality_score)
+#
+# The curing transition's duration is the modelling primitive: an
+# engineer reading the toml sees `duration = 3` and knows that step
+# blocks the line for three time-units.
+
+[scenario]
+name = "paint_shop"
+description = "Paint shop with a long-running curing step (duration 3) and a quality-driven pass/fail gate."
+
+[net]
+source = "inline"
+
+[[net.places]]
+id = "p_raw"
+tokens = 1
+label = "raw part"
+[[net.places]]
+id = "p_painted"
+label = "painted, awaiting cure"
+[[net.places]]
+id = "p_inspected"
+label = "cured, ready for inspection"
+[[net.places]]
+id = "p_passed"
+label = "passed inspection"
+[[net.places]]
+id = "p_failed"
+label = "failed inspection"
+
+[[net.transitions]]
+id = "t_paint"
+label = "apply paint"
+
+[[net.transitions]]
+id = "t_cure"
+label = "cure paint"
+duration = 3
+
+[[net.transitions]]
+id = "t_pass"
+label = "pass inspection"
+
+[[net.transitions]]
+id = "t_fail"
+label = "fail inspection"
+
+[[net.arcs]]
+src = "p_raw"
+dst = "t_paint"
+[[net.arcs]]
+src = "t_paint"
+dst = "p_painted"
+
+[[net.arcs]]
+src = "p_painted"
+dst = "t_cure"
+[[net.arcs]]
+src = "t_cure"
+dst = "p_inspected"
+
+[[net.arcs]]
+src = "p_inspected"
+dst = "t_pass"
+[[net.arcs]]
+src = "t_pass"
+dst = "p_passed"
+
+[[net.arcs]]
+src = "p_inspected"
+dst = "t_fail"
+[[net.arcs]]
+src = "t_fail"
+dst = "p_failed"
+
+[traces]
+source = "inline"
+
+[[traces.inline]]
+attributes = { quality_score = "0.92" }
+events = ["apply paint", "cure paint", "pass inspection"]
+[[traces.inline]]
+attributes = { quality_score = "0.85" }
+events = ["apply paint", "cure paint", "pass inspection"]
+[[traces.inline]]
+attributes = { quality_score = "0.79" }
+events = ["apply paint", "cure paint", "pass inspection"]
+[[traces.inline]]
+attributes = { quality_score = "0.88" }
+events = ["apply paint", "cure paint", "pass inspection"]
+[[traces.inline]]
+attributes = { quality_score = "0.94" }
+events = ["apply paint", "cure paint", "pass inspection"]
+[[traces.inline]]
+attributes = { quality_score = "0.71" }
+events = ["apply paint", "cure paint", "pass inspection"]
+
+[[traces.inline]]
+attributes = { quality_score = "0.18" }
+events = ["apply paint", "cure paint", "fail inspection"]
+[[traces.inline]]
+attributes = { quality_score = "0.21" }
+events = ["apply paint", "cure paint", "fail inspection"]
+[[traces.inline]]
+attributes = { quality_score = "0.08" }
+events = ["apply paint", "cure paint", "fail inspection"]
+[[traces.inline]]
+attributes = { quality_score = "0.30" }
+events = ["apply paint", "cure paint", "fail inspection"]
+[[traces.inline]]
+attributes = { quality_score = "0.27" }
+events = ["apply paint", "cure paint", "fail inspection"]
+[[traces.inline]]
+attributes = { quality_score = "0.12" }
+events = ["apply paint", "cure paint", "fail inspection"]
+
+[training.input_marking]
+p_inspected = { attribute = "quality_score" }
+
+[training]
+steps = 1500
+lr = 0.1
+sharpness = 1.0
+firing = "sigmoid"
+routing = "independent"
+# Durations only kick in when num_steps > 0. With six steps we give
+# the cure transition's three-step delay enough room to mature, then
+# a couple of extra steps for downstream activity.
+num_steps = 6
+seed = 0
+
+[interpretability]
+extract_xor_rules = true

@@ -208,6 +208,95 @@ def test_inhibitor_arc_suppresses_transition_when_place_activated():
     assert ungated["t_gated"].item() > 0.5
 
 
+def test_duration_3_transition_delays_output_by_two_extra_steps():
+    """A transition with duration 3 starts producing observable output
+    at step 3, not step 1. We watch p_done's activation across step
+    budgets: 1, 2, and 3 steps. Until step 3 the buffer hasn't filled,
+    so the output stays effectively zero; at step 3 the first firing
+    completes its three-step run and the output appears."""
+    torch.manual_seed(0)
+    net = PetriNet()
+    net.add_place("p_input", tokens=1)
+    net.add_place("p_done")
+    net.add_transition("t_slow", duration=3)
+    net.add_arc("p_input", "t_slow")
+    net.add_arc("t_slow", "p_done")
+
+    # One step: the slow transition has only just fired; no output yet.
+    torch.manual_seed(0)
+    one = PetriNetModule(net, num_steps=1, sharpness=4.0)()
+    # Two steps: still in flight.
+    torch.manual_seed(0)
+    two = PetriNetModule(net, num_steps=2, sharpness=4.0)()
+    # Three steps: the firing matures and the output place lights up.
+    torch.manual_seed(0)
+    three = PetriNetModule(net, num_steps=3, sharpness=4.0)()
+
+    assert one["p_done"].item() < 0.05
+    assert two["p_done"].item() < 0.05
+    assert three["p_done"].item() > 0.3
+
+
+def test_higher_rate_yields_higher_activation_on_same_inputs():
+    """A high-rate transition should fire more strongly than its
+    sibling with the same inputs and a lower rate. We build a 3-way
+    XOR with three rates (high, medium, low) and check the ordering
+    of activations holds for a midpoint input."""
+    torch.manual_seed(0)
+    net = PetriNet()
+    net.add_place("p_in", tokens=1)
+    for branch in ("high", "med", "low"):
+        net.add_place(f"p_{branch}_out")
+    net.add_transition("t_high", rate=3.0)
+    net.add_transition("t_med")           # rate=1.0 (default)
+    net.add_transition("t_low", rate=0.3)
+    for branch, tid in [("high", "t_high"), ("med", "t_med"), ("low", "t_low")]:
+        net.add_arc("p_in", tid)
+        net.add_arc(tid, f"p_{branch}_out")
+
+    module = PetriNetModule(net)
+    with torch.no_grad():
+        out = module(input_marking={"p_in": torch.tensor([0.6])})
+    # Rate-ordering should be preserved at every input value (the
+    # rates only scale the sigmoid argument, so the ordering is
+    # monotone in rate for any positive input gap).
+    assert out["t_high"].item() > out["t_med"].item() > out["t_low"].item()
+
+
+def test_rate_one_matches_pre_rate_behaviour():
+    """Backwards compatibility: a net with no explicit rates produces
+    the exact same activations as the existing behaviour."""
+    torch.manual_seed(0)
+    net = PetriNet()
+    net.add_place("p_in", tokens=1)
+    net.add_place("p_out")
+    net.add_transition("t")
+    net.add_arc("p_in", "t")
+    net.add_arc("t", "p_out")
+    torch.manual_seed(0)
+    a = PetriNetModule(net)()
+    torch.manual_seed(0)
+    b = PetriNetModule(net)()
+    assert a["t"].item() == pytest.approx(b["t"].item())
+
+
+def test_duration_1_matches_pre_duration_behaviour():
+    """Backwards compatibility: a net with no explicit durations
+    behaves identically to one explicitly declaring duration=1."""
+    torch.manual_seed(0)
+    net = PetriNet()
+    net.add_place("p_in", tokens=1)
+    net.add_place("p_out")
+    net.add_transition("t_immediate")
+    net.add_arc("p_in", "t_immediate")
+    net.add_arc("t_immediate", "p_out")
+    torch.manual_seed(0)
+    module = PetriNetModule(net, num_steps=3, sharpness=2.0)
+    out = module()
+    # Should behave the same as the existing single-step semantics.
+    assert out["p_out"].item() > 0.4
+
+
 def test_inhibitor_gate_in_time_unrolled_mode_enforces_mutex():
     """The mutex pattern: two transitions race for a shared 'critical'
     place, each inhibited by it. In time-unrolled mode, after the

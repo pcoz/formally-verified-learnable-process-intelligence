@@ -37,6 +37,26 @@ class PetriNet:
     # consume tokens from these places, they're only guards.
     inhibitor_arcs: set[tuple[str, str]] = field(default_factory=set)
 
+    # Per-transition firing duration, measured in time-unrolled steps.
+    # A transition with duration D, fired at step n, contributes its
+    # output to place updates D-1 steps later (so D=1 means immediate,
+    # the original behaviour). Like arc_multiplicities, we store only
+    # the entries that differ from the default of 1 to keep the
+    # common case cheap. Durations are meaningful only in the
+    # compiler's time-unrolled forward pass; the discrete token-game
+    # treats every firing as atomic.
+    transition_durations: dict[str, int] = field(default_factory=dict)
+
+    # Per-transition firing rate (default 1.0). Multiplies the
+    # pre-activation in the compiler, so a transition with rate λ
+    # behaves as if it had sharpness λ * net_sharpness — high rate
+    # = steeper firing curve (more eager to fire for given inputs),
+    # low rate = shallower curve (more conservative). Lets the
+    # modeller encode prior knowledge about transition propensity
+    # without losing the trainable threshold. Like the other Phase 9
+    # extensions, only non-default entries are stored.
+    transition_rates: dict[str, float] = field(default_factory=dict)
+
     def add_place(self, pid: str, *, label: str | None = None, tokens: int = 0) -> None:
         self.places.add(pid)
         if label is not None:
@@ -44,10 +64,58 @@ class PetriNet:
         if tokens:
             self.initial_marking[pid] = self.initial_marking.get(pid, 0) + tokens
 
-    def add_transition(self, tid: str, *, label: str | None = None) -> None:
+    def add_transition(
+        self,
+        tid: str,
+        *,
+        label: str | None = None,
+        duration: int = 1,
+        rate: float = 1.0,
+    ) -> None:
+        """Add a transition.
+
+        ``duration`` is the number of time-unrolled steps the
+        transition takes to produce its output once it has fired
+        (default 1 = immediate). Durations only have effect in the
+        compiler's time-unrolled forward pass.
+
+        ``rate`` is a per-transition firing-rate multiplier applied
+        to the pre-activation by the compiler. The default 1.0
+        leaves behaviour unchanged. A rate of 3.0 makes this
+        transition fire roughly three times as eagerly as its
+        siblings for the same inputs; 0.3 makes it three times less
+        eager. Lets the modeller encode prior knowledge about
+        transition propensity (priority, stochastic rate, etc.)
+        alongside the learnable weights and thresholds.
+        """
+        if duration < 1:
+            raise ValueError(
+                f"transition {tid!r}: duration must be a positive integer, "
+                f"got {duration}"
+            )
+        if rate <= 0:
+            raise ValueError(
+                f"transition {tid!r}: rate must be a positive number, "
+                f"got {rate}"
+            )
         self.transitions.add(tid)
         if label is not None:
             self.transition_labels[tid] = label
+        if duration != 1:
+            self.transition_durations[tid] = duration
+        if rate != 1.0:
+            self.transition_rates[tid] = float(rate)
+
+    def duration(self, transition: str) -> int:
+        """The transition's firing duration in time-unrolled steps.
+        Returns 1 (immediate) for transitions added without an
+        explicit duration."""
+        return self.transition_durations.get(transition, 1)
+
+    def rate(self, transition: str) -> float:
+        """The transition's firing-rate multiplier. Returns 1.0 for
+        transitions added without an explicit rate."""
+        return self.transition_rates.get(transition, 1.0)
 
     def add_arc(self, src: str, dst: str, *, weight: int = 1) -> None:
         if weight < 1:
@@ -179,6 +247,27 @@ class PetriNet:
             if transition not in self.transitions:
                 issues.append(
                     f"inhibitor arc references unknown transition {transition!r}"
+                )
+
+        for transition, duration in self.transition_durations.items():
+            if transition not in self.transitions:
+                issues.append(
+                    f"duration recorded for unknown transition {transition!r}"
+                )
+            if duration < 1:
+                issues.append(
+                    f"transition {transition!r} has non-positive duration "
+                    f"{duration}"
+                )
+
+        for transition, rate in self.transition_rates.items():
+            if transition not in self.transitions:
+                issues.append(
+                    f"rate recorded for unknown transition {transition!r}"
+                )
+            if rate <= 0:
+                issues.append(
+                    f"transition {transition!r} has non-positive rate {rate}"
                 )
 
         return issues

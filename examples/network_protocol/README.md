@@ -1,9 +1,10 @@
 # Network protocol — TCP 3-way handshake + attack detection
 
-The TCP 3-way handshake modelled as a Petri net, used to demonstrate
-attack-pattern anomaly detection on protocol traces. Validates the
-framing claims that the substrate covers network protocol state
-machines and that anomaly detection generalises to attack patterns.
+The TCP 3-way handshake modelled as a Petri net. PETRA running on a
+network protocol state machine: client and server are two pools
+linked by three message places (SYN, SYN-ACK, ACK). Attack patterns
+such as SYN floods and half-open connections show up as anomaly
+residuals on the transitions that should have fired and didn't.
 
 ## What this scenario shows
 

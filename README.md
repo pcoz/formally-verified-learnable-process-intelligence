@@ -3,11 +3,12 @@
 **Petri-Net Trained Architecture** — *formally-verified learnable
 process intelligence*.
 
-A research scaffold combining sound Petri-net substrates with neural-
-network training. The structural constraint — a verified place /
-transition graph — is what makes PETRA able to learn dynamics over a
-much wider class of systems than its BPMN framing implies, with
-formal equivalence guarantees almost no other ML approach can claim.
+Give PETRA a Petri-net structure and a log of executions over it.
+PETRA trains a model of how that system actually behaves, distills
+the model's routing decisions into readable rules, scores new
+executions for anomalies pinned to specific named elements, proves
+when two structures are behaviourally equivalent, and ranks
+equivalent variants by realised-execution cost.
 
 > If your problem can be expressed as a finite-state, terminating,
 > discrete-event system and you have observable traces of multiple
@@ -42,36 +43,44 @@ same primitives): state machines in embedded software, regulatory
 and compliance workflows, games with bounded state, contract /
 treaty / agreement workflows, scientific data pipelines, RPA scripts.
 
-## What it cannot learn the dynamics of
+## Where PETRA fits well
 
-- **Continuous-time / continuous-state systems** (fluid dynamics,
-  classical mechanics, analogue control). Petri nets are discrete by
-  design.
-- **Truly one-shot novel systems** — needs a distribution over trace
-  data; one execution isn't enough to learn from.
-- **Systems whose own structure evolves faster than the training
-  loop** — the topology is fixed during training.
-- **Systems so large the Petri net is intractable** — state-space
-  explosion is real. This is a scaffold, not a planetary simulator.
+PETRA works best on systems with all four properties below:
 
-## What it is NOT
+- **Discrete events** — state changes at identifiable moments (a
+  transition firing), rather than continuously over time. Workflows,
+  protocols, recipes, state machines.
+- **Multiple-instance trace data** — you have many recorded runs of
+  the system to learn from. One run isn't enough.
+- **Stable structure for the duration of training** — the
+  place/transition graph stays fixed while learning the dynamics
+  within it.
+- **Tractably finite state space** — small enough that the compiled
+  Petri net fits in memory and trains in reasonable time. This is
+  generous in practice (thousands of places / transitions work fine)
+  but rules out problems that need an entire economy or the global
+  internet at full resolution.
 
-Not a general-purpose ML library, not an alternative to LSTMs or
-Transformers for arbitrary sequence modelling. The value is
-specifically the combination of *fixed verified topology* + *learned
-dynamics within it*. That combination buys:
+Fluid dynamics, classical mechanics, analogue control, and
+similar continuous-time / continuous-state physics need a different
+substrate — Petri nets are discrete by design.
+
+## What PETRA buys you
+
+PETRA combines a fixed verified topology with learned dynamics
+within it. That gives you four capabilities together:
 
 - **Interpretability** at the granularity of named domain elements
-  (BPMN tasks, biological pathway components, protocol states)
-- **Formal equivalence checks** between models via strong bisimulation
-  before deployment
+  (BPMN tasks, biological pathway components, protocol states).
+- **Formal equivalence checks** between two models via strong
+  bisimulation, before either is deployed.
 - **Anomaly detection** with residuals pinned to specific transitions
-  rather than opaque scores
+  rather than opaque whole-trace scores.
 - **Cost-ranked refactoring** — provably-equivalent variants compared
-  by realised-execution cost on the trained firing distribution
+  by realised-execution cost on the trained firing distribution.
 
-If your problem has no place/transition structure, use a different
-tool.
+PETRA's shape fits problems with explicit place/transition
+structure; arbitrary sequence modelling fits something else.
 
 ---
 
@@ -108,7 +117,8 @@ print(rules["xor"][0].description())
 ```
 
 For the framework-level API (build a `PetriNet` by hand, compile,
-train, extract rules, score anomalies), see `DEV_MANUAL.md`.
+train, extract rules, score anomalies), see
+[`docs/DEV_MANUAL.md`](docs/DEV_MANUAL.md).
 
 ---
 
@@ -136,25 +146,23 @@ examples/             # seven validated end-to-end scenarios
   cost_ranked_refactoring/
   multi_agent_coordination/
 
-tests/                # ~210 passing tests, framework + scenarios
-ROADMAP.md            # product roadmap + framing + spec scoreboard
-DEV_MANUAL.md         # framework + adapter usage guide
-petri-net-nn-architecture.md  # original research architecture proposal
+tests/                # passing tests, framework + scenarios
+docs/                 # all longer-form documentation
+  ROADMAP.md          # product roadmap + framing + scenarios table
+  DEV_MANUAL.md       # framework + adapter usage guide
 ```
 
 ---
 
 ## Reading order for newcomers
 
-1. This README — what the framework is and isn't
-2. `ROADMAP.md` framing section — why the substrate is more general
-   than BPMN
-3. Any `examples/*/README.md` — concrete scenario in your domain
-4. `DEV_MANUAL.md` — adapter config + framework API reference
-
-The original research proposal in `petri-net-nn-architecture.md` is
-the source material; the framework implements §3 through §10 of that
-document.
+1. This README — what PETRA is
+2. [`docs/ROADMAP.md`](docs/ROADMAP.md) — framing, scenarios
+   delivered, what's next
+3. Any [`examples/*/README.md`](examples/) — concrete scenario in
+   your domain
+4. [`docs/DEV_MANUAL.md`](docs/DEV_MANUAL.md) — adapter config plus
+   framework API reference
 
 ---
 

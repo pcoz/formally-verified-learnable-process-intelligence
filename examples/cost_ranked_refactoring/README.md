@@ -1,10 +1,13 @@
 # Cost-ranked variant search
 
-The point #6 demonstration: two implementation variants of a loan
-approval process, provably behaviourally equivalent (via Phase 2
-bisimulation), trained on the same trace data, with per-variant cost
-weights yielding an expected-cost-to-completion ranking. **This is
-the provably-safe-refactoring capability the framing claims.**
+Two implementation variants of a loan approval process,
+provably behaviourally equivalent via bisimulation, trained on the
+same trace data, with per-variant cost weights yielding an
+expected-cost-to-completion ranking. **PETRA running on the
+provably-safe-refactoring capability end to end:** the variants are
+verified equivalent before training, trained identically, then
+compared by realised cost — variant B comes out roughly six times
+cheaper while doing exactly the same thing.
 
 ## What this scenario shows
 

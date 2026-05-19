@@ -5,23 +5,21 @@ print head, robot arm, …). Showcases the **Phase 9 inhibitor-arc**
 feature: a structural guard that says *"do not fire while this place
 holds a token"*.
 
-## What this scenario shows that earlier phases could not
+## What inhibitor arcs enable here
 
-Without inhibitor arcs, declaring "two transitions are mutually
-exclusive on a shared resource" required ugly workarounds:
+The modeller writes the mutex constraint declaratively: *"`serve_a`
+is inhibited by `resource_busy`. `serve_b` is inhibited by
+`resource_busy`."* The framework enforces it in two places: the
+discrete token-game refuses to enable a transition while its
+inhibitor place holds a token, and the trained network's forward
+pass multiplies the transition's firing strength by `(1 - a(p))`
+for each inhibitor place — strong activation in the inhibitor
+suppresses firing smoothly.
 
-- A chain of explicit pass-the-baton places (one transition produces
-  a token that the other consumes), which only works for two
-  transitions and breaks for N>2.
-- An explicit "available" place that both transitions consume and
-  then re-produce, which still doesn't prevent simultaneous firing
-  in the continuous relaxation.
-
-With inhibitor arcs the modeller writes exactly the constraint:
-*"`serve_a` is inhibited by `resource_busy`. `serve_b` is inhibited
-by `resource_busy`."* The framework enforces it both in the discrete
-token-game (via `is_enabled`) and in the trained network (via the
-multiplicative `(1 - a(p))` gate in the forward pass).
+Two transitions sharing a single "resource" place this way is the
+canonical mutex / critical-section pattern; the same structural
+guard scales to N transitions sharing one resource, multiple
+resources with one client each, and richer locking schemes.
 
 ## Why the scenario uses time-unrolled mode
 

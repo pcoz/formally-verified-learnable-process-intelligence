@@ -1,0 +1,127 @@
+# Priority dispatch — three handlers competing for incoming tickets,
+# with rates encoding their relative dispatch priorities. Showcases
+# the Phase 9 transition-rate feature: the modeller declares that
+# the express handler is three times as eager to fire as the
+# standard handler, and the bulk handler half as eager, *before any
+# training*. Training then refines those priors against observed
+# trace data.
+#
+# Flow:
+#   p_ticket -- t_express  --> p_express_done   (rate=3.0)
+#   p_ticket -- t_standard --> p_standard_done  (rate=1.0)
+#   p_ticket -- t_bulk     --> p_bulk_done      (rate=0.5)
+#
+# Each ticket carries a "urgency" attribute that drives the final
+# routing; the rates set the prior, training learns the rest.
+
+[scenario]
+name = "priority_dispatch"
+description = "Three handlers with declared firing-rate priors; training refines them against trace data."
+
+[net]
+source = "inline"
+
+[[net.places]]
+id = "p_ticket"
+tokens = 1
+label = "incoming ticket"
+[[net.places]]
+id = "p_express_done"
+label = "express handled"
+[[net.places]]
+id = "p_standard_done"
+label = "standard handled"
+[[net.places]]
+id = "p_bulk_done"
+label = "bulk handled"
+
+[[net.transitions]]
+id = "t_express"
+label = "express handler"
+rate = 3.0
+
+[[net.transitions]]
+id = "t_standard"
+label = "standard handler"
+# rate=1.0 default
+
+[[net.transitions]]
+id = "t_bulk"
+label = "bulk handler"
+rate = 0.5
+
+[[net.arcs]]
+src = "p_ticket"
+dst = "t_express"
+[[net.arcs]]
+src = "t_express"
+dst = "p_express_done"
+
+[[net.arcs]]
+src = "p_ticket"
+dst = "t_standard"
+[[net.arcs]]
+src = "t_standard"
+dst = "p_standard_done"
+
+[[net.arcs]]
+src = "p_ticket"
+dst = "t_bulk"
+[[net.arcs]]
+src = "t_bulk"
+dst = "p_bulk_done"
+
+[traces]
+source = "inline"
+
+# Most tickets land on the standard handler; some on express
+# (high urgency); a few on bulk (low urgency). The rates encode the
+# baseline propensity; the urgency attribute moves things around.
+[[traces.inline]]
+attributes = { urgency = "0.9" }
+events = ["express handler"]
+[[traces.inline]]
+attributes = { urgency = "0.85" }
+events = ["express handler"]
+[[traces.inline]]
+attributes = { urgency = "0.78" }
+events = ["express handler"]
+[[traces.inline]]
+attributes = { urgency = "0.55" }
+events = ["standard handler"]
+[[traces.inline]]
+attributes = { urgency = "0.48" }
+events = ["standard handler"]
+[[traces.inline]]
+attributes = { urgency = "0.51" }
+events = ["standard handler"]
+[[traces.inline]]
+attributes = { urgency = "0.42" }
+events = ["standard handler"]
+[[traces.inline]]
+attributes = { urgency = "0.58" }
+events = ["standard handler"]
+[[traces.inline]]
+attributes = { urgency = "0.10" }
+events = ["bulk handler"]
+[[traces.inline]]
+attributes = { urgency = "0.15" }
+events = ["bulk handler"]
+[[traces.inline]]
+attributes = { urgency = "0.22" }
+events = ["bulk handler"]
+
+[training.input_marking]
+p_ticket = { attribute = "urgency" }
+
+[training]
+steps = 1200
+lr = 0.1
+sharpness = 1.0
+firing = "sigmoid"
+routing = "independent"
+num_steps = 0
+seed = 0
+
+[interpretability]
+extract_xor_rules = false

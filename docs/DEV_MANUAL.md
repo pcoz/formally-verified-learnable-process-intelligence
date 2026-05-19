@@ -151,9 +151,28 @@ module = PetriNetModule(
 out = module(input_marking={"p_a": torch.tensor([0.9])})
 ```
 
-The compiler enforces the §4.3 structural constraint by construction:
+The compiler's structural constraint is enforced by construction:
 one `nn.Parameter` per arc in F, one per transition (threshold). No
 weights exist outside the flow relation.
+
+The forward pass implements a continuous relaxation of the discrete
+firing rule. For each transition:
+
+    activation(t) = σ( sharpness · ( Σ_p w(p,t) · a(p) − θ(t) ) )
+
+and for each downstream place:
+
+    a(p) = Σ_{t : (t,p) ∈ F}  activation(t) · w(t,p)
+
+That makes the whole network differentiable end to end — standard
+backpropagation applies. ``firing="ste"`` swaps the sigmoid for a
+hard step in the forward pass while keeping the sigmoid gradient
+flowing backward (the standard straight-through estimator);
+``routing="softmax"`` replaces independent sigmoids over an XOR
+group with a softmax that sums to 1; inhibitor arcs multiply the
+resulting activation by ``(1 − a(p))`` for each inhibitor place;
+transition durations buffer the activation for D−1 time-unrolled
+steps before it contributes to downstream places.
 
 ### 3.4 `traces.py` — training and anomaly scoring
 
@@ -211,7 +230,7 @@ For shared-preset XOR groups (multi-input competing transitions, e.g.
 *discriminative* input — the place whose learned weight gap across
 the group is largest.
 
-### 3.8 `bisimulation.py` — §7.3 formal equivalence
+### 3.8 `bisimulation.py` — formal equivalence checking
 
 ```python
 from petri_net_nn import are_bisimilar, bisimulation_equivalence_classes, reachability_graph
@@ -225,9 +244,10 @@ markings.
 ### 3.9 `subnets.py` — hand-built reference subnets
 
 `SequentialSubnet`, `XORSubnet`, `AndSplitSubnet`, `AndJoinSubnet`,
-`SagaSubnet` — five pedagogical `nn.Module` subclasses from spec §5.
-The general `PetriNetModule` subsumes them but the hand-built versions
-are kept as regression coverage and as readable references.
+`SagaSubnet` — five `nn.Module` subclasses corresponding to the
+canonical workflow-net building blocks. The general
+`PetriNetModule` subsumes them; the hand-built versions stay as
+readable references and regression coverage.
 
 ---
 
@@ -258,6 +278,8 @@ Current scenarios:
 | `multi_agent_coordination/` | Three-pool composition covers contract-net coordination. |
 | `batch_packaging/` | Phase 9 multi-token markings: arc weight 6 batches bottles into crates. |
 | `resource_lock/` | Phase 9 inhibitor arcs: two clients race for a single shared resource. |
+| `paint_shop/` | Phase 9 transition durations: a 3-step cure transition delays output. |
+| `priority_dispatch/` | Phase 9 stochastic firing rates: three handlers with rate priors. |
 | `cost_ranked_refactoring/` | Provably-safe refactoring via Phase 2 + `expected_cost`. |
 
 ---
@@ -316,7 +338,39 @@ end-to-end demos.
 
 ---
 
-## 7. Running everything
+## 7. Where this work sits in the literature
+
+PETRA draws on and combines four research threads:
+
+- **Workflow nets** — van der Aalst's foundational work on sound
+  workflow nets as a Petri-net subclass. PETRA depends on workflow-
+  net soundness for the reachability / liveness / boundedness
+  properties that make training meaningful.
+- **Graph neural networks for process mining** — work applying
+  GNNs to process graphs for conformance checking and anomaly
+  detection (Tax et al., Bukhsh et al.). PETRA is more structurally
+  constrained than a general GNN: the architecture IS the verified
+  workflow net, not learned from process data.
+- **Neuro-symbolic AI** — Scallop, DeepProbLog and similar systems
+  that combine neural and symbolic reasoning. PETRA is a specific
+  instance where the symbolic substrate is a compiler-verified
+  workflow net rather than a logic program.
+- **Spiking neural networks** — networks that model discrete spike
+  propagation rather than continuous activations. The token-firing
+  model is analogous to spike propagation, and SNN training methods
+  (STDP, surrogate-gradient methods) are applicable to PETRA's
+  discrete-firing limit and inform the Phase 6 STE work.
+
+PETRA's novel contribution is the specific combination: a verified
+workflow net used as a fixed neural-network architecture, where the
+soundness properties propagate into the network's representational
+constraints and the learned weights stay interpretable at the
+granularity of named domain elements (BPMN tasks, pathway
+components, protocol states, …).
+
+---
+
+## 8. Running everything
 
 ```
 python -m pytest                          # full suite

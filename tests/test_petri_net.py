@@ -335,3 +335,84 @@ def test_add_inhibitor_arc_rejects_unknown_endpoints():
         net.add_inhibitor_arc("ghost", "t")
     with pytest.raises(ValueError, match="unknown transition"):
         net.add_inhibitor_arc("p", "ghost_t")
+
+
+# ---------------------------------------------------------------------------
+# Phase 9 — transition durations
+# ---------------------------------------------------------------------------
+
+
+def test_default_transition_duration_is_one():
+    net = PetriNet()
+    net.add_transition("t_immediate")
+    assert net.duration("t_immediate") == 1
+    # And it's not stored in the sparse dict — only non-default
+    # durations should occupy memory.
+    assert net.transition_durations == {}
+
+
+def test_transition_duration_stored_when_non_default():
+    net = PetriNet()
+    net.add_transition("t_slow", duration=5)
+    assert net.duration("t_slow") == 5
+    assert net.transition_durations["t_slow"] == 5
+
+
+def test_transition_duration_rejects_non_positive_values():
+    net = PetriNet()
+    with pytest.raises(ValueError, match="positive integer"):
+        net.add_transition("t", duration=0)
+    with pytest.raises(ValueError, match="positive integer"):
+        net.add_transition("t", duration=-3)
+
+
+def test_default_transition_rate_is_one():
+    net = PetriNet()
+    net.add_transition("t_normal")
+    assert net.rate("t_normal") == 1.0
+    assert net.transition_rates == {}
+
+
+def test_transition_rate_stored_when_non_default():
+    net = PetriNet()
+    net.add_transition("t_fast", rate=3.5)
+    assert net.rate("t_fast") == pytest.approx(3.5)
+    assert net.transition_rates["t_fast"] == pytest.approx(3.5)
+
+
+def test_transition_rate_rejects_non_positive_values():
+    net = PetriNet()
+    with pytest.raises(ValueError, match="positive number"):
+        net.add_transition("t", rate=0)
+    with pytest.raises(ValueError, match="positive number"):
+        net.add_transition("t", rate=-1.0)
+
+
+def test_validate_flags_invalid_rate_dict_entries():
+    net = PetriNet()
+    net.add_place("p", tokens=1)
+    net.add_place("q")
+    net.add_transition("t")
+    net.add_arc("p", "t")
+    net.add_arc("t", "q")
+    net.transition_rates["ghost"] = 2.0
+    net.transition_rates["t"] = 0.0
+    issues = net.validate()
+    assert any("unknown transition" in issue for issue in issues)
+    assert any("non-positive rate" in issue for issue in issues)
+
+
+def test_validate_flags_invalid_duration_dict_entries():
+    net = PetriNet()
+    net.add_place("p1", tokens=1)
+    net.add_place("p2")
+    net.add_transition("t")
+    net.add_arc("p1", "t")
+    net.add_arc("t", "p2")
+    # Directly poke an invalid entry to simulate a malformed net
+    # constructed by some lower-level loader.
+    net.transition_durations["ghost"] = 4
+    net.transition_durations["t"] = 0
+    issues = net.validate()
+    assert any("unknown transition" in issue for issue in issues)
+    assert any("non-positive duration" in issue for issue in issues)

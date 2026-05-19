@@ -5,18 +5,15 @@ single crate before inspection. Showcases the **Phase 9 multi-token
 markings** feature — the crate transition has an input arc with weight
 6, so it only fires once enough bottles have accumulated.
 
-## What this scenario shows that the 1-bounded scaffold could not
+## What multi-token markings enable here
 
-Pre-Phase 9 nets could only model token-at-a-time firing. A real
-packaging line is full of N-to-1 transitions: 6 bottles per case,
-24 cases per pallet, 8 pallets per truck. Without arc weights you'd
-have to fake this with chains of single-token transitions or with
-explicit counter places — both ugly and structurally inaccurate.
-
-With multi-token arcs the crate transition reads exactly what the
-manufacturing engineer would draw: *consume 6 bottles, produce 1
-crate*. The token-game waits for the buffer to fill; PETRA's
-training and anomaly detection then layer cleanly on top.
+A real packaging line is full of N-to-1 transitions: 6 bottles per
+case, 24 cases per pallet, 8 pallets per truck. Multi-token arcs
+let the crate transition read exactly what the manufacturing
+engineer would draw — *consume 6 bottles, produce 1 crate* — and
+the framework's token-game waits for the buffer to fill before
+allowing the transition to fire. PETRA's training and anomaly
+detection layer cleanly on top of that semantics.
 
 ## Token-game behaviour
 
