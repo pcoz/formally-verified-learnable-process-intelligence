@@ -588,9 +588,15 @@ GreatSPN, TINA, ProM, Reactome, BPI Challenge — and PETRA currently
 ignores all of it. That's lazy. This phase makes PETRA a citizen of
 that ecosystem.
 
-- [ ] **PNML import and export.** PNML is *the* interchange format
-  for Petri nets. Adding it lets nets from any of the established
-  tools feed into PETRA and PETRA's output go back to them.
+- [x] **PNML import and export.** `petri_net_nn.pnml` provides
+  `parse_pnml` and `to_pnml` over the PNML 2009 P/T net subset:
+  places, transitions, arcs, initial markings, arc inscriptions
+  (weights), names, multi-page documents flattened to one net, and
+  the de-facto inhibitor-arc extension (`<arctype>inhibitor`).
+  Round-trip preserves the structural core; PETRA-specific
+  extensions (durations, rates, guards, output values) without a
+  standard PNML representation are dropped on export and ignored
+  on import. Adapter accepts `source = "pnml_file"`.
 - [ ] **BioPAX / SBGN / SIF.** Reactome pathway data, in the formats
   biologists actually use. Replaces the hand-coded MAPK fixture
   with real curated pathway content.

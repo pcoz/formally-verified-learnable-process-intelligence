@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Hand-crafted PNML 2009 P/T net to exercise PETRA's PNML parser
+  against a file that any classical Petri-net tool could read.
+
+  Modelling: a producer/consumer line with a bounded buffer. The
+  buffer has capacity 3 (initial marking on the "buffer_slot" place
+  represents free slots; "buffer_item" represents queued items).
+  The producer fires when there are free slots; the consumer fires
+  when there are queued items.
+-->
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="producer_consumer" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Bounded-buffer producer/consumer</text></name>
+    <page id="main_page">
+
+      <place id="buffer_slot">
+        <name><text>free buffer slot</text></name>
+        <initialMarking><text>3</text></initialMarking>
+      </place>
+      <place id="buffer_item">
+        <name><text>queued item</text></name>
+      </place>
+      <place id="produced">
+        <name><text>items produced</text></name>
+      </place>
+      <place id="consumed">
+        <name><text>items consumed</text></name>
+      </place>
+
+      <transition id="t_produce">
+        <name><text>produce one item</text></name>
+      </transition>
+      <transition id="t_consume">
+        <name><text>consume one item</text></name>
+      </transition>
+
+      <arc id="a1" source="buffer_slot" target="t_produce"/>
+      <arc id="a2" source="t_produce" target="buffer_item"/>
+      <arc id="a3" source="t_produce" target="produced"/>
+      <arc id="a4" source="buffer_item" target="t_consume"/>
+      <arc id="a5" source="t_consume" target="buffer_slot"/>
+      <arc id="a6" source="t_consume" target="consumed"/>
+
+    </page>
+  </net>
+</pnml>

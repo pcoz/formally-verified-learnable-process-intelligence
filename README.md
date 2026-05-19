@@ -103,6 +103,43 @@ that running with tests.
 
 ---
 
+## How PETRA fits with classical Petri-net tools
+
+PETRA is **complementary**, not competitive, to the established
+Petri-net tool ecosystem. Each classical tool answers a different
+question over the same Petri-net structure:
+
+| Tool | What it's best at | Where PETRA differs |
+|---|---|---|
+| **CPN Tools** (Aarhus) | Reference implementation of Coloured Petri Nets — full ML-style colour-set typing, state-space verification, mature GUI simulator. | CPN Tools verifies a *given* CPN; PETRA *trains* a model of how the net's transitions are actually used from execution traces. CPN Tools' colour sets are far richer than PETRA's CPN-lite scalar token values. |
+| **GreatSPN** (Turin) | Generalised Stochastic Petri Nets — exponentially-distributed firing times, analytical CTMC throughput, performance bounds. | GreatSPN gives closed-form stationary throughput under a stipulated rate model; PETRA's stochastic rates are compiler-level multipliers used during training. Different question. |
+| **TINA** (LAAS-CNRS) | Time Petri nets with intervals, state-space exploration, integrated CTL/LTL model checking via NuSMV. | TINA proves temporal-logic invariants about the *specified* behaviour; PETRA learns how the deployed system actually behaves and flags deviations. Phase 11 of the PETRA roadmap aims to wire model checking in directly. |
+| **ProM** (Eindhoven) | Process mining — Alpha / Inductive / Heuristics miners discover a Petri net from execution logs; conformance checking; large plugin ecosystem. | ProM does *structure discovery* from logs (Phase 12 of PETRA's roadmap, not yet built). The two are a natural pair: ProM discovers, PETRA trains dynamics on the result. |
+
+**The thing PETRA does that none of them do:** combine a
+*learned-from-traces* dynamics model with a *structurally verified*
+Petri-net substrate, then extract interpretable rules from the
+learned weights and rank behaviour-preserving refactorings by cost.
+None of those four tools touch any of those four capabilities.
+
+### A complementary analysis stack
+
+The five tools naturally compose end-to-end on the same model:
+
+> **ProM** discovers the structure from logs → **CPN Tools**
+> verifies its soundness → **GreatSPN** gives stochastic throughput
+> → **TINA** proves temporal invariants → **PETRA** learns the
+> dynamics that actually occur in production, distills the routing
+> rules, detects deviations, and ranks refactorings.
+
+PNML support is the bridge that makes this stack possible — any of
+those tools' output can now feed straight into PETRA. That's why
+PNML is high-leverage despite being only a few hundred lines of
+code: it converts PETRA from a standalone Python library into an
+ecosystem citizen, one PNML file away from any of the above.
+
+---
+
 ## Quick start
 
 ```python

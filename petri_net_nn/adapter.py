@@ -85,6 +85,7 @@ from petri_net_nn.interpretability import (
     extract_routing_rules,
 )
 from petri_net_nn.petri_net import PetriNet
+from petri_net_nn.pnml import parse_pnml
 from petri_net_nn.traces import anomaly_score, train_on_traces
 from petri_net_nn.xes import XESEvent, XESTrace, parse_xes
 
@@ -278,6 +279,15 @@ def _load_net(spec: dict[str, Any], config_dir: Path) -> PetriNet:
         if not path_value:
             raise ValueError("net.source='bpmn_file' requires 'path'")
         return parse_bpmn(_resolve(path_value, config_dir))
+    if source == "pnml_file":
+        # PNML is the standard interchange format for Petri nets;
+        # this bridge lets PETRA consume nets emitted by CPN Tools,
+        # GreatSPN, TINA, ProM, Snoopy, and any other PNML-aware
+        # modeller without going through BPMN first.
+        path_value = spec.get("path")
+        if not path_value:
+            raise ValueError("net.source='pnml_file' requires 'path'")
+        return parse_pnml(_resolve(path_value, config_dir))
     if source == "inline":
         net = PetriNet()
         for place in spec.get("places", []):
@@ -329,7 +339,8 @@ def _load_net(spec: dict[str, Any], config_dir: Path) -> PetriNet:
             net.add_inhibitor_arc(inh["place"], inh["transition"])
         return net
     raise ValueError(
-        f"net.source must be 'bpmn_file' or 'inline', got {source!r}"
+        f"net.source must be 'bpmn_file', 'pnml_file', or 'inline', "
+        f"got {source!r}"
     )
 
 
