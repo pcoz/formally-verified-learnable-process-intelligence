@@ -1,0 +1,18 @@
+[
+  {
+    "attributes": {"case_id": "case-001", "priority": "high"},
+    "events": ["Submit", "Review", "Approve"]
+  },
+  {
+    "attributes": {"case_id": "case-002", "priority": "low"},
+    "events": [
+      {"name": "Submit", "attributes": {"clerk": "alice"}},
+      {"name": "Review"},
+      {"name": "Decline", "attributes": {"reason": "insufficient_funds"}}
+    ]
+  },
+  {
+    "attributes": {"case_id": "case-003", "priority": "high"},
+    "events": ["Submit", "Review", "Approve"]
+  }
+]

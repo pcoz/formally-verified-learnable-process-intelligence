@@ -1,0 +1,10 @@
+case_id,activity,priority
+case-001,Submit,high
+case-001,Review,high
+case-001,Approve,high
+case-002,Submit,low
+case-002,Review,low
+case-002,Decline,low
+case-003,Submit,high
+case-003,Review,high
+case-003,Approve,high

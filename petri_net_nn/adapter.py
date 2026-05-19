@@ -71,7 +71,10 @@ Missing optional sections fall back to library defaults.
 """
 from __future__ import annotations
 
+import csv
+import json
 import sys
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -406,6 +409,137 @@ def _load_traces(spec: dict[str, Any], config_dir: Path) -> list[XESTrace]:
                 )
             )
         return out
+    if source == "csv_file":
+        path_value = spec.get("path")
+        if not path_value:
+            raise ValueError("traces.source='csv_file' requires 'path'")
+        return _load_csv_traces(_resolve(path_value, config_dir), spec)
+    if source == "json_file":
+        path_value = spec.get("path")
+        if not path_value:
+            raise ValueError("traces.source='json_file' requires 'path'")
+        return _load_json_traces(_resolve(path_value, config_dir), spec)
     raise ValueError(
-        f"traces.source must be 'xes_file' or 'inline', got {source!r}"
+        f"traces.source must be one of 'xes_file', 'csv_file', "
+        f"'json_file', or 'inline'; got {source!r}"
     )
+
+
+def _load_csv_traces(path: Path, spec: dict[str, Any]) -> list[XESTrace]:
+    """Parse a flat-table CSV of events into XES traces.
+
+    Standard process-mining CSV layout: one row per event with at
+    least a case-id column (groups events into traces) and an
+    activity column (the event name). Any remaining columns become
+    event-level attributes; the case-id-keyed first row's columns
+    are also lifted to trace level so downstream attribute_to_marking
+    can read them.
+
+    Column names are configurable per spec:
+      case_column     (default "case_id")
+      activity_column (default "activity")
+    """
+    case_col = spec.get("case_column", "case_id")
+    activity_col = spec.get("activity_column", "activity")
+
+    # OrderedDict preserves first-seen order — keeps the resulting
+    # trace list stable across runs even with arbitrary CSV ordering.
+    traces_by_case: OrderedDict[str, XESTrace] = OrderedDict()
+
+    with open(path, newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh)
+        if reader.fieldnames is None or case_col not in reader.fieldnames:
+            raise ValueError(
+                f"CSV at {path} must have a {case_col!r} column "
+                f"(got headers: {reader.fieldnames})"
+            )
+        if activity_col not in reader.fieldnames:
+            raise ValueError(
+                f"CSV at {path} must have an {activity_col!r} column "
+                f"(got headers: {reader.fieldnames})"
+            )
+        for row in reader:
+            case_id = row[case_col]
+            activity = row[activity_col]
+            event_attrs = {
+                k: v for k, v in row.items()
+                if k not in (case_col, activity_col) and v is not None
+            }
+            trace = traces_by_case.get(case_id)
+            if trace is None:
+                # The first row for this case sets the trace-level
+                # attributes. Conventionally any column that doesn't
+                # vary across rows in the case is a trace attribute;
+                # we lift everything from the first row to keep the
+                # adapter simple. Downstream consumers can read them
+                # via attribute_to_marking.
+                trace = XESTrace(
+                    attributes={case_col: case_id, **event_attrs},
+                    events=[],
+                )
+                traces_by_case[case_id] = trace
+            trace.events.append(
+                XESEvent(name=activity, attributes=event_attrs)
+            )
+
+    return list(traces_by_case.values())
+
+
+def _load_json_traces(path: Path, spec: dict[str, Any]) -> list[XESTrace]:
+    """Parse a JSON list of traces.
+
+    Expected shape (each list entry):
+      {
+        "attributes": {...},   # optional trace-level
+        "events": [
+          "activity_name",                                # event by name
+          {"name": "...", "attributes": {...}}            # full form
+        ]
+      }
+
+    Strings in the events list are sugar for the full form with no
+    event-level attributes — useful when only the activity name
+    matters. The full form is used when the consumer needs to
+    promote event-level attributes to trace level via
+    ``promote_event_attrs``."""
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    if not isinstance(data, list):
+        raise ValueError(
+            f"JSON at {path} must be a list of trace objects at the top level"
+        )
+
+    out: list[XESTrace] = []
+    for entry in data:
+        if not isinstance(entry, dict):
+            raise ValueError(
+                f"JSON trace entries must be objects; got {type(entry).__name__}"
+            )
+        attrs_raw = entry.get("attributes", {}) or {}
+        attributes = {k: str(v) for k, v in attrs_raw.items()}
+        events: list[XESEvent] = []
+        for raw_event in entry.get("events", []):
+            if isinstance(raw_event, str):
+                events.append(XESEvent(name=raw_event))
+            elif isinstance(raw_event, dict):
+                name = raw_event.get("name")
+                if not name:
+                    raise ValueError(
+                        f"JSON event object missing 'name': {raw_event}"
+                    )
+                event_attrs_raw = raw_event.get("attributes", {}) or {}
+                events.append(
+                    XESEvent(
+                        name=str(name),
+                        attributes={
+                            k: str(v) for k, v in event_attrs_raw.items()
+                        },
+                    )
+                )
+            else:
+                raise ValueError(
+                    f"JSON events must be strings or objects; got "
+                    f"{type(raw_event).__name__}"
+                )
+        out.append(XESTrace(attributes=attributes, events=events))
+    return out

@@ -610,9 +610,14 @@ that ecosystem.
   attribute, e.g. `lifecycle:transition`). PETRA trains on the
   full corpus in ~20 seconds; anomaly detection flags traces that
   skip the Resolved step before Closing.
-- [ ] **CSV / JSON trace adapters.** Most industrial logs aren't
-  XES. Adding straightforward CSV and JSON ingest cuts the
-  onboarding friction for non-process-mining users.
+- [x] **CSV / JSON trace adapters.** Adapter accepts
+  `traces.source = "csv_file"` (standard process-mining flat
+  table with configurable `case_column` / `activity_column`) and
+  `traces.source = "json_file"` (a list of `{attributes, events}`
+  objects, with events either as bare strings or as full
+  `{name, attributes}` objects). Both produce the same XESTrace
+  list the rest of the pipeline consumes, with full support for
+  `promote_event_attrs` and the other adapter options.
 
 ## Phase 11 — Deeper formal methods *(later)*
 
