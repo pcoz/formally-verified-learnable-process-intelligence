@@ -1,0 +1,496 @@
+# Product Roadmap
+
+A research scaffold turning `petri-net-nn-architecture.md` into running
+code. Each phase has a goal, a list of deliverables, and a status
+marker. Phases run roughly sequentially but a later phase may start
+before an earlier one ends if the work is genuinely independent. The
+scoreboard in the README/summary tracks delivered work against spec
+sections.
+
+---
+
+## Framing — scope beyond business processes
+
+The architecture spec presents this work in the language of BPMN
+process reasoning, and most of the phase deliverables below use BPMN
+fixtures. That undersells what is actually being built. The structural
+constraint isn't a limitation — it is what makes dynamic modelling of
+complex systems tractable. Most ML approaches to complex systems fail
+because the hypothesis space is too large; this approach inverts that
+by making the topology fixed and the dynamics learned within it. That
+is a stronger position than the BPMN framing implies.
+
+Five points worth holding in mind while reading the phases below:
+
+1. **Compositionality scales.** Phase 5 showed two pools composing
+   cleanly via shared message places. Nothing in the architecture
+   breaks at N pools — you can model an entire enterprise's
+   interacting processes, or a multi-tier supply chain, or a
+   federated multi-agent system, with the same primitives. Each pool
+   keeps its local learned weights; the message-place dynamics are
+   emergent across the composition. That is a genuinely different
+   shape from monolithic models.
+
+2. **The cyclic compiler is bigger than BPMN.** Once you have
+   time-unrolled dynamics over a Petri net (Phase 3), you are not
+   just modelling BPMN — you are modelling any discrete-event
+   dynamical system that can be expressed as a place/transition
+   graph. That includes:
+   - distributed consensus protocols (Paxos, Raft phases as
+     transitions);
+   - manufacturing cell dynamics (machines, buffers, parts);
+   - biological signalling pathways (pathway databases like Reactome
+     are essentially Petri nets);
+   - multi-agent coordination protocols;
+   - network protocol state machines under load.
+
+3. **Bisimulation is not a nice-to-have — it is a precondition for
+   BPMN ML.** Two business processes can be drawn differently,
+   labelled differently, decomposed across different gateways, and
+   still implement the same workflow. Without a way to verify that
+   two trained models are operating over equivalent process
+   structures, comparing their learned weights — or transferring
+   learnings between them, or aggregating across an organisation's
+   process variants — is meaningless: you do not know whether you
+   are comparing like with like. Most ML systems cannot answer
+   "is this learned model equivalent to that one"; Phase 2 can —
+   structurally, before training, with a proof. That makes BPMN ML
+   actually possible rather than merely plausible, and it is the
+   formal-verification-meets-ML story almost nobody can claim with
+   running code.
+
+4. **Anomaly detection generalises beyond business processes.** §7.2
+   works for any trace over a known structure: attack-pattern
+   detection in protocol traces, fault localisation in distributed
+   systems, deviation analysis in scientific workflows.
+
+5. **The discrete-continuous bridge is the real research
+   contribution.** STE + sharpness annealing (Phase 6) on a
+   Petri-net-constrained network is a tractable approach to a problem
+   the spec calls open — and this architecture is one of very few
+   substrates where the question is even well-posed, because the
+   topology is fixed.
+
+6. **Bisimulation plus learned weights enables cost-ranked variant
+   search — equivalently, *provably-safe business process
+   refactoring*.** The traditional analogue is code refactoring.
+   You can confidently restructure code because the compiler catches
+   type errors, tests catch behaviour changes, and sometimes formal
+   methods prove invariants. For business processes today you have
+   none of those tools — a proposed redesign is either approved on
+   intuition (risky), rolled out via expensive shadow-running (slow),
+   or never attempted (status quo wins by default).
+
+   What cost-ranking via bisimulation + learned weights gives you,
+   in three steps:
+
+   - Refactor a process and *mechanically verify you haven't changed
+     what it does* (Phase 2 bisimulation). Pre-bisimulation, you
+     cannot meaningfully claim two BPMN variants are "the same
+     process, drawn differently."
+   - Rank the verified-equivalent variants by realised-execution
+     cost — attach per-transition cost weights (wall-clock time,
+     monetary cost, resource usage, energy), train each variant on
+     the same XES trace distribution, and read off
+     expected-cost-to-completion from the resulting firing patterns.
+     The cost model is *fitted to actual data*, not stipulated by
+     hand.
+   - Choose the cheaper variant with formal guarantees that the
+     only difference is cost, not behaviour. "Variant B is provably
+     equivalent to variant A in behaviour, and 23% cheaper on the
+     observed workload."
+
+   Concretely, that sequence enables things that are currently very
+   hard:
+
+   - **Cross-organisation process benchmarking.** Two companies run
+     different BPMN variants achieving the same outcome. You can
+     prove they are equivalent and then compare their cost
+     efficiency on each company's workload. Currently impossible
+     because you cannot verify behavioural equivalence across
+     organisations.
+   - **A/B testing of business processes with real guarantees.**
+     Run two equivalent variants in production, compare measured
+     costs, attribute differences to design rather than behaviour
+     drift.
+   - **Process refactoring at code-refactoring confidence.**
+     Semantic-preserving redesigns ranked quantitatively without
+     rollout risk. That converts process redesign from a
+     high-stakes decision into a low-stakes iteration loop — the
+     same shift that made software engineering's
+     continuous-refactoring culture possible.
+
+   The comparison is impossible in monolithic ML approaches because
+   they cannot prove equivalence in the first place — and it is
+   impossible in classical workflow analysis because the cost model
+   is not fitted to realised execution data.
+
+   The scale of this shift is worth naming directly. Software's
+   productivity transformation since the 1990s — continuous
+   integration, microservices, agile methods, DevOps, the whole
+   iterate-fast-and-learn culture — was downstream of refactoring
+   becoming *safe*. Once code could change without fear, the
+   organisational cost of trying a new design collapsed, and design
+   iteration cycles compressed from years to days. Business
+   processes are stuck where software was before that shift:
+   change-aversion is rational because changes are risky, and
+   that risk-aversion shows up everywhere — in multi-year ERP
+   implementations, in the billion-dollar process-reengineering
+   consulting industry, in "we've always done it this way" being a
+   coherent answer. Processes *are* the operating model of every
+   organisation. If they become as malleable as code under the same
+   safety guarantees, the impact is at the scale of the operating
+   model of the economy. That is what this substrate, taken
+   seriously, points at.
+
+### Scenarios validated
+
+Each framing claim above has an end-to-end demonstration in
+`examples/<scenario>/` with a paired test in
+`tests/scenarios/test_<scenario>.py`. Driven entirely from TOML
+configs via the `load_scenario` adapter (no per-scenario Python
+boilerplate).
+
+| Scenario | Framing claim(s) validated | Key result |
+|---|---|---|
+| `biological_signalling/` | Point 2 (non-BPMN substrate), Point 3 (bisimulation across variants) | Strength-dependent fast/slow pathway routing learned; rule distilled in pathway vocabulary. |
+| `distributed_consensus/` | Point 2 (consensus protocols), Point 4 (fault localisation) | 2PC token-game validated; Byzantine commit-after-low-vote anomaly flagged. |
+| `manufacturing_cell/` | Point 2 (manufacturing dynamics) | Quality-driven ship/rework rule recovered; mis-ship anomaly detected. |
+| `network_protocol/` | Point 2 (protocol state machines), Point 4 (attack patterns) | TCP handshake compiles; SYN-flood and half-open attack patterns detected. |
+| `scientific_workflow/` | Point 4 (deviation analysis in scientific workflows) | PCR quality gate learned; skipped-step deviation flagged. |
+| `multi_agent_coordination/` | Point 2 (multi-agent coordination protocols), Point 4 (coordination-violation detection) | Contract-net with 3 pools / 6 message places; bid-driven award routing learned; AND-join rule distilled over 3 inputs; pre-bid award flagged as anomalous. |
+| `cost_ranked_refactoring/` | Point 3 (bisimulation), Point 6 (cost-ranked refactoring) | Two cost variants verified equivalent; variant B confirmed ~6× cheaper across input distribution. |
+
+**Framework shortcoming discovered and fixed during scenario
+validation:** `find_xor_groups` originally only detected single-input
+XOR shapes (BPMN-style). Real protocols like 2PC have *shared-preset*
+XOR groups — multiple transitions competing for the same multi-place
+precondition. The detector was generalised to recognise both patterns,
+and the rule extractors gained an automatic "pick the discriminative
+input" step that examines learned weight gaps across the preset.
+
+The honest framing: this isn't a "business process tool with
+interpretability." It is a general framework for learning the
+dynamics of any system whose structure can be expressed as a sound
+workflow net, with formal equivalence checking and
+structurally-grounded anomaly detection as side effects. The phases
+below build BPMN fixtures because that is where the spec landed, but
+the substrate covers a substantially larger surface.
+
+---
+
+## Phase 1 — Scaffold *(done)*
+
+**Goal:** stand up the full extract → compile → train pipeline against
+synthetic data for the tractable BPMN subset.
+
+Delivered:
+
+- [x] §3 BPMN → Petri net translation (`parse_bpmn`): tasks, gateways,
+  start/end events, compensation boundary events (acyclic shape).
+- [x] §4 continuous relaxation with the §4.3 structural constraint by
+  construction (`PetriNetModule`: one weight per arc, one threshold
+  per transition, no parameters outside F).
+- [x] §5 five elemental subnets — both hand-built (`subnets.py`) and
+  emergent under the general compiler.
+- [x] §6 composition: the approval process compiles and runs forward.
+- [x] §7.1 process execution prediction via training on traces.
+- [x] §7.2 anomaly detection with interpretable per-transition
+  residuals.
+- [x] §10 Step 1 BPMN extraction, Step 2 differentiable subnets,
+  Step 3 XES log training (sequential + XOR — the spec's "most common
+  and tractable cases").
+
+---
+
+## Phase 2 — Formal/empirical bridge: bisimulation *(done)*
+
+**Goal:** close the §7.3 claim — *two subnets bisimulation equivalent
+in the Petri net sense learn identical weight distributions on the same
+training data.* The bisimulation checker identifies them structurally;
+training confirms them behaviourally.
+
+Delivered:
+
+- [x] `bisimulation.py`: reachability graph + partition-refinement
+  strong-bisimulation checker for bounded Petri nets.
+- [x] Public API: `are_bisimilar(net1, net2)`,
+  `bisimulation_equivalence_classes(net)`, `reachability_graph(net)`.
+- [x] Tests covering: identical nets, label-isomorphic renamings,
+  structurally distinct but behaviourally equivalent nets
+  (redundant parallel transitions with same label), and
+  non-equivalent nets.
+- [x] Integration test: two structurally isomorphic but disjointly
+  named XOR nets, trained on the same XES log under the same seed,
+  converge to forward-pass outputs that agree to within 0.05 across
+  the input domain.
+
+---
+
+## Phase 3 — Time-unrolled compiler: cycles *(done)*
+
+**Goal:** model genuinely cyclic processes — real compensation
+semantics (compensate a task *after* it completed, in response to a
+later thrown compensation event), retry loops, repetition.
+
+Delivered:
+
+- [x] Time-step unroll of `PetriNetModule` via a `num_steps` kwarg.
+  Default 0 keeps acyclic single-pass behaviour; any positive value
+  switches to synchronous time-step updates that accept cyclic nets.
+  Source places clamp to their input value at every step (persistent
+  input layer); non-source places evolve through §4.2.
+- [x] Compensation throw/end events in the BPMN parser, with the real
+  "compensate after completion" pattern: an extra completion-marker
+  place produced by the task transition, and a throw transition that
+  AND-joins the throw event's incoming flow with the completion
+  marker before producing the compensating place.
+- [x] Retry-loop fixture (`retry_loop.bpmn`) and saga-with-throw
+  fixture (`saga_with_throw.bpmn`), each with structural and
+  token-game tests, and a compile-and-forward test for the retry loop
+  in time-unrolled mode.
+
+Known limitations carried forward:
+
+- The time-unrolled forward is synchronous (all transitions update from
+  the previous step's place activations, then all places update from
+  the new transition activations). Token conservation is approximate —
+  the continuous relaxation lets activation mass grow or shrink along
+  cycles. For sound workflow nets without explicit decay this is
+  usually fine; for free-running loops the user picks `num_steps` to
+  bound how far the dynamics run.
+- Compensation throw is restricted to one throw event and one paired
+  compensation handler per process. Multi-handler / `activityRef`-targeted
+  throws are not supported.
+
+---
+
+## Phase 4 — BPMN coverage expansion *(done)*
+
+**Goal:** extend the parser to the rest of common BPMN.
+
+Delivered:
+
+- [x] Non-compensation interrupting boundary events: error, timer,
+  signal, escalation, message. All share one translation pattern —
+  the boundary becomes an alternative transition out of the attached
+  task's input place, producing tokens at the place corresponding to
+  the boundary's outgoing sequenceFlow. Distinguished from the
+  compensation pattern (which uses associations).
+- [x] Intermediate events (`intermediateThrowEvent`,
+  `intermediateCatchEvent`) as plain pass-through transitions. Event
+  definitions on intermediate events are rejected with a clear
+  message — they need per-type handling (timers/messages/signals) and
+  are deferred.
+- [x] Lanes (`<laneSet>` / `<lane>` / `<flowNodeRef>`) are silently
+  ignored — they have no control-flow semantics. Verified by parsing
+  a lane-wrapped BPMN and asserting the resulting Petri net is
+  identical to the lane-less version.
+- [x] Multiple boundary events on one task: verified (no code change
+  was needed — the existing loop handles each boundary independently,
+  producing N+1 competing transitions for N boundaries plus the
+  task's own success transition).
+- [x] `<subProcess>` raises a clear "not supported in this scaffold"
+  error pointing at this roadmap. Inline flattening is deferred.
+
+Tightened later:
+
+- [x] Non-interrupting boundary events (`cancelActivity="false"`). The
+  task transition gains an extra output arc to the boundary's
+  handler-path place, so when the task fires both the normal outflow
+  AND the handler path receive tokens — the parallel-fork semantics
+  the BPMN spec calls for. No T_fail alternative is created.
+
+Carried forward:
+
+- Intermediate event definitions (timer/message/signal catches as
+  intermediate, not boundary, events) need separate translation. They
+  would be a natural pair with cross-pool message flows in Phase 5.
+- Inline `<subProcess>` flattening — recursive translation with scope
+  tracking. Out of scope here; see Phase 4.5 below if reopened.
+
+---
+
+## Phase 5 — Cross-pool composition *(done)*
+
+**Goal:** address §8's "cross-pool composition" open problem.
+
+Delivered:
+
+- [x] `<collaboration>` / `<participant>` / `<messageFlow>` parsing.
+  The parser now dispatches at the top level: a collaboration document
+  produces a composed multi-pool net, a plain process document
+  produces a single-pool net (backward-compatible).
+- [x] Multi-pool Petri net composition. The per-process translation
+  logic was extracted into `_parse_process(elem, *, prefix, net, ...)`
+  which adds to a shared `PetriNet` with every place / transition ID
+  prefixed by the participant's BPMN ID. The collaboration handler
+  calls it once per participant so internal IDs from different pools
+  don't collide.
+- [x] Shared message places per `<messageFlow>`. Each flow inserts a
+  `msg_{flow_id}` place between the sender's transition (extra output
+  arc) and the receiver's transition (extra input arc) — natural
+  Aalst-style inter-organisational workflow-net composition.
+- [x] Token conservation across pool boundaries is *implied* by the
+  structure: a send transition consumes 1 sequenceFlow-place token
+  and produces 1 sequenceFlow + 1 message-place token (net +1); the
+  receive transition consumes the message-place token plus its own
+  sequenceFlow place and produces its outflow place (net −1). The
+  full system conserves tokens across the pair, and the test
+  `test_full_collaboration_token_game_completes_both_pools` walks the
+  marking through every cross-pool transition to verify it.
+
+Carried forward:
+
+- Distributed training across pool nets — per-pool XES logs trained
+  independently rather than the whole composed net trained on
+  combined traces. Belongs in Phase 6 once the training methodology
+  work starts.
+- Message flows to/from non-task nodes (events, gateways). Currently
+  the message flow endpoint must be a node that produced a
+  transition, which excludes start/end events and gateways. Adding
+  this is mechanical but needs a careful think about which
+  transition to attach the arc to for multi-transition gateways.
+
+---
+
+## Phase 6 — Training methodology *(done)*
+
+**Goal:** address §8's "discrete-continuous interface" and "training
+data requirements" open problems.
+
+Delivered:
+
+- [x] Straight-through estimator variant. `PetriNetModule(firing="ste")`
+  uses a binary forward (hard step at sigmoid 0.5) with a sigmoid
+  backward via the detach-trick. Forward produces exact 0.0 / 1.0
+  outputs while gradients still flow to the arc weights and
+  thresholds; verified by training the AND truth table to *exact*
+  0/1 targets at every truth-table row.
+- [x] Sharpness annealing. `SharpnessScheduler(module, start, end,
+  num_steps, kind)` mutates `module.sharpness` over training, linear
+  or exponential. Comparison test confirms an annealed schedule
+  reaches a lower AND-join training loss than fixed `sharpness=1.0`.
+- [x] Training-data-requirement sweep. `sweep_trace_count(factory,
+  traces, ..., sample_sizes)` trains a fresh module on the first N
+  traces for each N, returning per-size final loss. Test confirms
+  the XOR routing problem needs more than 2 traces (one of each
+  routing direction) to learn opposite routing.
+
+Tightened later:
+
+- [x] Softmax routing for XOR. `PetriNetModule(routing="softmax")`
+  detects XOR-shape transitions structurally (single shared input
+  place with all consumers having only that one input) and applies
+  softmax over their pre-activations. AND-joins and non-XOR
+  transitions continue to use the configured firing function. The
+  load-bearing test confirms activations sum to 1 across the XOR
+  group and AND-joins are untouched. Gumbel-softmax (adding
+  reparameterised noise for stochastic discrete sampling) is a
+  smaller follow-up on the same scaffold.
+
+---
+
+## Phase 7 — Anomaly detection evaluation *(done)*
+
+**Goal:** §10 Step 4 — quantify §7.2 on realistic anomalous-trace
+generators.
+
+Delivered:
+
+- [x] Anomaly generators in `anomalies.py`: `drop_event`,
+  `insert_event`, `swap_event_labels` (branch-flipping), and
+  `shuffle_events` (reordering). Each returns a corrupted copy of
+  the input trace; the input is not mutated.
+- [x] Trace-level anomaly score (`trace_anomaly_score`) and an AUC
+  helper (`auc`) for ranking traces and measuring detector quality.
+- [x] AUC characterisation per anomaly type on the XOR fixture:
+  branch-flipping gets AUC > 0.9, inserted unseen events get
+  AUC > 0.5, dropped events produce strictly higher scores than
+  any in-distribution trace.
+- [x] Baseline comparison via `FrequencyBaseline` — a marginal-
+  frequency detector that scores traces by negative log probability
+  under the training event distribution. The load-bearing test
+  confirms that the structured Petri-net detector beats the
+  frequency baseline on branch-flip by ≥ 0.3 AUC: branch flipping
+  is invisible to a detector that doesn't see attributes, but
+  caught cleanly by one that conditions on the input marking.
+
+Carried forward:
+
+- LSTM autoencoder baseline. The frequency baseline already
+  isolates the structural-prior contribution for branch-flipping;
+  an LSTM autoencoder is the natural next baseline for *sequential*
+  anomalies (out-of-order events), where the frequency baseline is
+  also blind. Belongs in a follow-up evaluation phase alongside
+  longer-trace fixtures (e.g. the approval process) where order
+  carries information.
+
+---
+
+## Phase 8 — Interpretability *(done)*
+
+**Goal:** §8's fourth open problem — distill learned weights back into
+readable decision rules.
+
+Delivered:
+
+- [x] `find_xor_groups(net)` for structural XOR-shape detection (N
+  transitions sharing a single input place, each with only one input).
+- [x] `extract_xor_rule(module, place, t_a, t_b)` for per-pair rule
+  extraction: derives the crossover threshold and direction from the
+  trained weight gap (w_A - w_B) and threshold gap (θ_A - θ_B); the
+  weight-gap magnitude doubles as a confidence score.
+- [x] `extract_routing_rules(module)` for whole-net rule extraction.
+- [x] Smart label rewriting (`_downstream_label`) so distilled rules
+  reference the downstream BPMN task name ("Path A") rather than the
+  auto-generated gateway transition label ("Route -> fA1"). This is
+  what makes the rules *business readable* rather than internal
+  implementation labels.
+- [x] `explain_anomaly(module, trace, ...)` produces a human-readable
+  narrative pinned to specific BPMN labels, with expected vs observed
+  activation and residual magnitude per diverging transition. The
+  test pins the §7.2 promise: the explanation must not leak internal
+  transition IDs like `t_xor_split_0`.
+
+Load-bearing test: the XOR fixture trained on the 12-trace XES log
+(routing at risk_score = 0.5) yields a distilled rule with
+**crossover ≈ 0.486** and the right direction — high input → Path A,
+low input → Path B. The neural net's learned weights have been
+distilled back into a single readable business rule:
+*"if risk_score > 0.486 → Path A, otherwise → Path B."* That closes
+the loop from §4.2's continuous-relaxation training back to
+§3-translation-table-readable business logic.
+
+Tightened later:
+
+- [x] N-way XOR rule extraction. `extract_xor_partition(module,
+  place, transitions)` computes the upper envelope of the N linear
+  pre-activations over the input axis and returns contiguous
+  `XORRegion` intervals each mapped to a winning transition. The
+  3-way load-bearing test trains on synthetic data routing at 1/3
+  and 2/3 and recovers a 3-region partition with the right
+  boundaries and labels. A whole-net variant
+  (`extract_routing_partitions`) handles binary and N-way uniformly.
+- [x] AND-join rule distillation. `extract_and_join_rule(module, t)`
+  reads the learned input weights and threshold for a synchronisation
+  transition, detects whether the weights are roughly uniform, and
+  renders the rule either as a quorum ("fires when all N inputs are
+  active" / "fires when at least k of N inputs are active") or as an
+  explicit weighted vote with per-input weights. The test trains an
+  AND-join on its truth table and confirms the summary contains
+  "all" and "2" (i.e. "fires when all 2 inputs are active").
+
+---
+
+## Out-of-scope cross-cutting limits *(held)*
+
+- Multi-token markings (per-place token counts > 1). All current nets
+  are 1-bounded.
+- Explicit time / clocks. BPMN timer events and durations aren't
+  modelled.
+- Probabilistic Petri nets — transition activations are not
+  interpreted as firing probabilities (they're continuous activations
+  in [0,1]).
+- Engagement with formal-methods / neuro-symbolic AI research
+  communities (§10 Step 5) — out of scope for code work.

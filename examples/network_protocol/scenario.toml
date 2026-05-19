@@ -1,0 +1,169 @@
+# Simplified TCP 3-way handshake — client + server exchanging SYN /
+# SYN-ACK / ACK messages. Real-world source: RFC 793 (Transmission
+# Control Protocol, 1981).
+#
+# Composed via Phase 5 cross-pool primitives (client and server are
+# two pools linked by three message places), but hand-coded here
+# directly as a PetriNet — the framework treats this exactly like
+# the 2PC scenario, only the message types differ.
+#
+# The attribute "session_class" is an integer-coded categorical
+# (encoded as a float in [0,1]) that distinguishes routine sessions
+# from explicitly-marked "fast" sessions in the synthetic training
+# data — gives the model a meaningful routing signal beyond just
+# memorising the completion pattern.
+
+[scenario]
+name = "tcp_handshake"
+description = "Simplified TCP 3-way handshake with attack-pattern anomaly detection"
+
+[net]
+source = "inline"
+
+# Client states
+[[net.places]]
+id = "p_client_closed"
+tokens = 1
+label = "client CLOSED"
+
+[[net.places]]
+id = "p_client_syn_sent"
+label = "client SYN_SENT"
+
+[[net.places]]
+id = "p_client_established"
+label = "client ESTABLISHED"
+
+# Server states
+[[net.places]]
+id = "p_server_listen"
+tokens = 1
+label = "server LISTEN"
+
+[[net.places]]
+id = "p_server_syn_received"
+label = "server SYN_RECEIVED"
+
+[[net.places]]
+id = "p_server_established"
+label = "server ESTABLISHED"
+
+# Shared message places
+[[net.places]]
+id = "p_msg_syn"
+label = "SYN segment in flight"
+
+[[net.places]]
+id = "p_msg_syn_ack"
+label = "SYN-ACK segment in flight"
+
+[[net.places]]
+id = "p_msg_ack"
+label = "ACK segment in flight"
+
+# Transitions
+[[net.transitions]]
+id = "t_send_syn"
+label = "send SYN"
+[[net.transitions]]
+id = "t_recv_syn_send_synack"
+label = "receive SYN, send SYN-ACK"
+[[net.transitions]]
+id = "t_recv_synack_send_ack"
+label = "receive SYN-ACK, send ACK"
+[[net.transitions]]
+id = "t_recv_ack_complete"
+label = "receive ACK, established"
+
+# Arcs
+[[net.arcs]]
+src = "p_client_closed"
+dst = "t_send_syn"
+[[net.arcs]]
+src = "t_send_syn"
+dst = "p_client_syn_sent"
+[[net.arcs]]
+src = "t_send_syn"
+dst = "p_msg_syn"
+
+[[net.arcs]]
+src = "p_server_listen"
+dst = "t_recv_syn_send_synack"
+[[net.arcs]]
+src = "p_msg_syn"
+dst = "t_recv_syn_send_synack"
+[[net.arcs]]
+src = "t_recv_syn_send_synack"
+dst = "p_server_syn_received"
+[[net.arcs]]
+src = "t_recv_syn_send_synack"
+dst = "p_msg_syn_ack"
+
+[[net.arcs]]
+src = "p_client_syn_sent"
+dst = "t_recv_synack_send_ack"
+[[net.arcs]]
+src = "p_msg_syn_ack"
+dst = "t_recv_synack_send_ack"
+[[net.arcs]]
+src = "t_recv_synack_send_ack"
+dst = "p_client_established"
+[[net.arcs]]
+src = "t_recv_synack_send_ack"
+dst = "p_msg_ack"
+
+[[net.arcs]]
+src = "p_server_syn_received"
+dst = "t_recv_ack_complete"
+[[net.arcs]]
+src = "p_msg_ack"
+dst = "t_recv_ack_complete"
+[[net.arcs]]
+src = "t_recv_ack_complete"
+dst = "p_server_established"
+
+[traces]
+source = "inline"
+
+# Normal handshake completions
+[[traces.inline]]
+attributes = { session_class = "1.0" }
+events = ["send SYN", "receive SYN, send SYN-ACK", "receive SYN-ACK, send ACK", "receive ACK, established"]
+[[traces.inline]]
+attributes = { session_class = "1.0" }
+events = ["send SYN", "receive SYN, send SYN-ACK", "receive SYN-ACK, send ACK", "receive ACK, established"]
+[[traces.inline]]
+attributes = { session_class = "1.0" }
+events = ["send SYN", "receive SYN, send SYN-ACK", "receive SYN-ACK, send ACK", "receive ACK, established"]
+[[traces.inline]]
+attributes = { session_class = "1.0" }
+events = ["send SYN", "receive SYN, send SYN-ACK", "receive SYN-ACK, send ACK", "receive ACK, established"]
+[[traces.inline]]
+attributes = { session_class = "1.0" }
+events = ["send SYN", "receive SYN, send SYN-ACK", "receive SYN-ACK, send ACK", "receive ACK, established"]
+[[traces.inline]]
+attributes = { session_class = "1.0" }
+events = ["send SYN", "receive SYN, send SYN-ACK", "receive SYN-ACK, send ACK", "receive ACK, established"]
+[[traces.inline]]
+attributes = { session_class = "1.0" }
+events = ["send SYN", "receive SYN, send SYN-ACK", "receive SYN-ACK, send ACK", "receive ACK, established"]
+[[traces.inline]]
+attributes = { session_class = "1.0" }
+events = ["send SYN", "receive SYN, send SYN-ACK", "receive SYN-ACK, send ACK", "receive ACK, established"]
+
+[training.input_marking]
+p_client_closed = { constant = 1.0 }
+p_server_listen = { constant = 1.0 }
+
+[training]
+steps = 800
+lr = 0.1
+sharpness = 1.0
+firing = "sigmoid"
+routing = "independent"
+num_steps = 0
+seed = 0
+
+[interpretability]
+extract_xor_rules = false
+extract_and_join_rules = false

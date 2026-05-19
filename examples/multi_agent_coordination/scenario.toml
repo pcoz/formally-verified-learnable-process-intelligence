@@ -1,0 +1,259 @@
+# Multi-agent coordination — the contract-net protocol.
+#
+# Real-world source: Smith, "The Contract Net Protocol: High-Level
+# Communication and Control in a Distributed Problem Solver" (IEEE
+# Transactions on Computers, 1980). Foundational pattern in multi-
+# agent systems, still in use 45 years later (FIPA contract-net
+# interaction protocol, distributed task allocation in
+# robotics / RL multi-agent systems).
+#
+# Three agents (one manager, two contractors) coordinate to assign
+# and execute a task:
+#   1. Manager broadcasts a task announcement.
+#   2. Each contractor submits a bid.
+#   3. Manager evaluates both bids and awards the contract to the
+#      better one.
+#   4. The awarded contractor performs the work and reports back.
+#
+# Routing attribute: "a_advantage" ∈ [0, 1] — the relative quality
+# of contractor A's bid vs B's. Above 0.5 → A wins; below 0.5 → B
+# wins. The framework learns the threshold from observed awards.
+
+[scenario]
+name = "contract_net_coordination"
+description = "Three-agent contract-net protocol with bid-driven contractor selection"
+
+[net]
+source = "inline"
+
+# Manager states
+[[net.places]]
+id = "p_manager_start"
+tokens = 1
+label = "manager has task"
+[[net.places]]
+id = "p_manager_awaiting"
+label = "manager awaiting bids"
+[[net.places]]
+id = "p_manager_evaluated"
+label = "manager has received both bids"
+
+# Contractor A states
+[[net.places]]
+id = "p_a_idle"
+tokens = 1
+label = "contractor A idle"
+[[net.places]]
+id = "p_a_bidding"
+label = "contractor A has bid"
+[[net.places]]
+id = "p_a_done"
+label = "contractor A completed"
+
+# Contractor B states
+[[net.places]]
+id = "p_b_idle"
+tokens = 1
+label = "contractor B idle"
+[[net.places]]
+id = "p_b_bidding"
+label = "contractor B has bid"
+[[net.places]]
+id = "p_b_done"
+label = "contractor B completed"
+
+# Shared message places
+[[net.places]]
+id = "p_msg_announce_a"
+label = "task announcement to A"
+[[net.places]]
+id = "p_msg_announce_b"
+label = "task announcement to B"
+[[net.places]]
+id = "p_msg_bid_a"
+label = "A's bid"
+[[net.places]]
+id = "p_msg_bid_b"
+label = "B's bid"
+[[net.places]]
+id = "p_msg_award_a"
+label = "award to A"
+[[net.places]]
+id = "p_msg_award_b"
+label = "award to B"
+
+# Transitions
+[[net.transitions]]
+id = "t_announce"
+label = "announce task"
+[[net.transitions]]
+id = "t_bid_a"
+label = "A submits bid"
+[[net.transitions]]
+id = "t_bid_b"
+label = "B submits bid"
+[[net.transitions]]
+id = "t_evaluate"
+label = "evaluate bids"
+[[net.transitions]]
+id = "t_award_a"
+label = "award to A"
+[[net.transitions]]
+id = "t_award_b"
+label = "award to B"
+[[net.transitions]]
+id = "t_perform_a"
+label = "A performs task"
+[[net.transitions]]
+id = "t_perform_b"
+label = "B performs task"
+
+# Manager announces task (broadcasts to both contractors)
+[[net.arcs]]
+src = "p_manager_start"
+dst = "t_announce"
+[[net.arcs]]
+src = "t_announce"
+dst = "p_manager_awaiting"
+[[net.arcs]]
+src = "t_announce"
+dst = "p_msg_announce_a"
+[[net.arcs]]
+src = "t_announce"
+dst = "p_msg_announce_b"
+
+# Contractors submit bids
+[[net.arcs]]
+src = "p_a_idle"
+dst = "t_bid_a"
+[[net.arcs]]
+src = "p_msg_announce_a"
+dst = "t_bid_a"
+[[net.arcs]]
+src = "t_bid_a"
+dst = "p_a_bidding"
+[[net.arcs]]
+src = "t_bid_a"
+dst = "p_msg_bid_a"
+
+[[net.arcs]]
+src = "p_b_idle"
+dst = "t_bid_b"
+[[net.arcs]]
+src = "p_msg_announce_b"
+dst = "t_bid_b"
+[[net.arcs]]
+src = "t_bid_b"
+dst = "p_b_bidding"
+[[net.arcs]]
+src = "t_bid_b"
+dst = "p_msg_bid_b"
+
+# Manager AND-joins both bids before evaluating
+[[net.arcs]]
+src = "p_manager_awaiting"
+dst = "t_evaluate"
+[[net.arcs]]
+src = "p_msg_bid_a"
+dst = "t_evaluate"
+[[net.arcs]]
+src = "p_msg_bid_b"
+dst = "t_evaluate"
+[[net.arcs]]
+src = "t_evaluate"
+dst = "p_manager_evaluated"
+
+# XOR award: A or B based on learned routing
+[[net.arcs]]
+src = "p_manager_evaluated"
+dst = "t_award_a"
+[[net.arcs]]
+src = "t_award_a"
+dst = "p_msg_award_a"
+
+[[net.arcs]]
+src = "p_manager_evaluated"
+dst = "t_award_b"
+[[net.arcs]]
+src = "t_award_b"
+dst = "p_msg_award_b"
+
+# Awarded contractor performs the work
+[[net.arcs]]
+src = "p_a_bidding"
+dst = "t_perform_a"
+[[net.arcs]]
+src = "p_msg_award_a"
+dst = "t_perform_a"
+[[net.arcs]]
+src = "t_perform_a"
+dst = "p_a_done"
+
+[[net.arcs]]
+src = "p_b_bidding"
+dst = "t_perform_b"
+[[net.arcs]]
+src = "p_msg_award_b"
+dst = "t_perform_b"
+[[net.arcs]]
+src = "t_perform_b"
+dst = "p_b_done"
+
+[traces]
+source = "inline"
+
+# A wins (high a_advantage)
+[[traces.inline]]
+attributes = { a_advantage = "0.92" }
+events = ["announce task", "A submits bid", "B submits bid", "evaluate bids", "award to A", "A performs task"]
+[[traces.inline]]
+attributes = { a_advantage = "0.85" }
+events = ["announce task", "A submits bid", "B submits bid", "evaluate bids", "award to A", "A performs task"]
+[[traces.inline]]
+attributes = { a_advantage = "0.78" }
+events = ["announce task", "A submits bid", "B submits bid", "evaluate bids", "award to A", "A performs task"]
+[[traces.inline]]
+attributes = { a_advantage = "0.95" }
+events = ["announce task", "A submits bid", "B submits bid", "evaluate bids", "award to A", "A performs task"]
+[[traces.inline]]
+attributes = { a_advantage = "0.71" }
+events = ["announce task", "A submits bid", "B submits bid", "evaluate bids", "award to A", "A performs task"]
+[[traces.inline]]
+attributes = { a_advantage = "0.88" }
+events = ["announce task", "A submits bid", "B submits bid", "evaluate bids", "award to A", "A performs task"]
+
+# B wins (low a_advantage)
+[[traces.inline]]
+attributes = { a_advantage = "0.18" }
+events = ["announce task", "A submits bid", "B submits bid", "evaluate bids", "award to B", "B performs task"]
+[[traces.inline]]
+attributes = { a_advantage = "0.24" }
+events = ["announce task", "A submits bid", "B submits bid", "evaluate bids", "award to B", "B performs task"]
+[[traces.inline]]
+attributes = { a_advantage = "0.31" }
+events = ["announce task", "A submits bid", "B submits bid", "evaluate bids", "award to B", "B performs task"]
+[[traces.inline]]
+attributes = { a_advantage = "0.08" }
+events = ["announce task", "A submits bid", "B submits bid", "evaluate bids", "award to B", "B performs task"]
+[[traces.inline]]
+attributes = { a_advantage = "0.27" }
+events = ["announce task", "A submits bid", "B submits bid", "evaluate bids", "award to B", "B performs task"]
+[[traces.inline]]
+attributes = { a_advantage = "0.14" }
+events = ["announce task", "A submits bid", "B submits bid", "evaluate bids", "award to B", "B performs task"]
+
+[training.input_marking]
+p_manager_evaluated = { attribute = "a_advantage" }
+
+[training]
+steps = 1500
+lr = 0.1
+sharpness = 1.0
+firing = "sigmoid"
+routing = "independent"
+num_steps = 0
+seed = 0
+
+[interpretability]
+extract_xor_rules = true
+extract_and_join_rules = true

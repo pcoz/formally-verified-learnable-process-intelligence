@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Simple approval process from §6 of the architecture spec
+  (saga compensation arm omitted — boundary events are not yet supported):
+
+      submitted -> triaged                      [Subnet 1: sequential]
+      triaged   -> standard | expedited         [Subnet 2: XOR]
+      expedited -> review + notification        [Subnet 3: AND-split]
+      review & notification -> decision         [Subnet 4: AND-join]
+-->
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <process id="p_approval" isExecutable="true">
+    <startEvent id="start"/>
+    <task id="triage" name="Triage submission"/>
+    <exclusiveGateway id="route" name="Standard or expedited?"/>
+    <task id="standard" name="Standard process"/>
+    <parallelGateway id="expedite_split" name="Run review and notification in parallel"/>
+    <task id="review" name="Risk review"/>
+    <task id="notify" name="Stakeholder notification"/>
+    <parallelGateway id="expedite_join" name="Wait for both"/>
+    <exclusiveGateway id="merge" name="Converge"/>
+    <task id="decide" name="Issue decision"/>
+    <endEvent id="end"/>
+
+    <sequenceFlow id="f_submit" sourceRef="start" targetRef="triage"/>
+    <sequenceFlow id="f_to_route" sourceRef="triage" targetRef="route"/>
+
+    <sequenceFlow id="f_route_std" sourceRef="route" targetRef="standard"/>
+    <sequenceFlow id="f_route_exp" sourceRef="route" targetRef="expedite_split"/>
+
+    <sequenceFlow id="f_split_review" sourceRef="expedite_split" targetRef="review"/>
+    <sequenceFlow id="f_split_notify" sourceRef="expedite_split" targetRef="notify"/>
+    <sequenceFlow id="f_review_join" sourceRef="review" targetRef="expedite_join"/>
+    <sequenceFlow id="f_notify_join" sourceRef="notify" targetRef="expedite_join"/>
+
+    <sequenceFlow id="f_std_merge" sourceRef="standard" targetRef="merge"/>
+    <sequenceFlow id="f_join_merge" sourceRef="expedite_join" targetRef="merge"/>
+    <sequenceFlow id="f_merge_decide" sourceRef="merge" targetRef="decide"/>
+
+    <sequenceFlow id="f_done" sourceRef="decide" targetRef="end"/>
+  </process>
+</definitions>

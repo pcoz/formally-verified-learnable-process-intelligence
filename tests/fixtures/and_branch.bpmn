@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <process id="p_and" isExecutable="true">
+    <startEvent id="start"/>
+    <parallelGateway id="and_split" name="Spawn"/>
+    <task id="taskA" name="Branch A"/>
+    <task id="taskB" name="Branch B"/>
+    <parallelGateway id="and_join" name="Sync"/>
+    <endEvent id="end"/>
+    <sequenceFlow id="f0" sourceRef="start" targetRef="and_split"/>
+    <sequenceFlow id="fA1" sourceRef="and_split" targetRef="taskA"/>
+    <sequenceFlow id="fB1" sourceRef="and_split" targetRef="taskB"/>
+    <sequenceFlow id="fA2" sourceRef="taskA" targetRef="and_join"/>
+    <sequenceFlow id="fB2" sourceRef="taskB" targetRef="and_join"/>
+    <sequenceFlow id="fEnd" sourceRef="and_join" targetRef="end"/>
+  </process>
+</definitions>

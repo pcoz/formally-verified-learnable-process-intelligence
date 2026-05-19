@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Saga compensation pattern (section 5, Subnet 5), acyclic interpretation.
+
+  The "charge card" task either succeeds (normal sequenceFlow leading to
+  p_f_ok) or its compensation boundary event fires, sending the token
+  through the refund handler and on to the p_f_refunded recovery state.
+-->
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <process id="p_saga" isExecutable="true">
+    <startEvent id="start"/>
+    <task id="charge_card" name="Charge card"/>
+    <task id="refund_card" isForCompensation="true" name="Refund card"/>
+    <boundaryEvent id="bnd_charge" attachedToRef="charge_card" name="Charge failed">
+      <compensateEventDefinition/>
+    </boundaryEvent>
+    <endEvent id="end_ok"/>
+    <endEvent id="end_compensated"/>
+
+    <sequenceFlow id="f_start" sourceRef="start" targetRef="charge_card"/>
+    <sequenceFlow id="f_ok" sourceRef="charge_card" targetRef="end_ok"/>
+    <sequenceFlow id="f_refunded" sourceRef="refund_card" targetRef="end_compensated"/>
+
+    <association id="assoc_charge" associationDirection="One"
+                 sourceRef="bnd_charge" targetRef="refund_card"/>
+  </process>
+</definitions>

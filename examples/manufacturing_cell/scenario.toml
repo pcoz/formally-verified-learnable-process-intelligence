@@ -1,0 +1,162 @@
+# Two-station manufacturing line with a quality-check XOR routing.
+#
+# Real-world structure: a job-shop / flow-shop pattern from operations
+# research literature. Each station processes one part at a time
+# (mutual exclusion via place tokens); a quality check after station 2
+# routes the part either to a "rework" loop or to the finished queue.
+#
+# Petri-net modelling tradition: production lines have been modelled
+# with Petri nets since the 1980s — see Murata's classic 1989 survey
+# "Petri Nets: Properties, Analysis and Applications", which uses
+# job-shop dynamics as a canonical example.
+#
+# Routing attribute: "quality_score" ∈ [0, 1]; high → "ship",
+# low → "rework". The framework learns the threshold from observed
+# production traces.
+
+[scenario]
+name = "manufacturing_cell"
+description = "Two-station production line with quality-driven XOR routing"
+
+[net]
+source = "inline"
+
+[[net.places]]
+id = "p_raw"
+tokens = 1
+label = "raw part queued"
+
+[[net.places]]
+id = "p_s1_done"
+label = "after station 1"
+
+[[net.places]]
+id = "p_s2_done"
+label = "after station 2"
+
+[[net.places]]
+id = "p_inspection_ready"
+label = "inspection ready"
+
+[[net.places]]
+id = "p_shipped"
+label = "shipped"
+
+[[net.places]]
+id = "p_reworked"
+label = "reworked"
+
+[[net.transitions]]
+id = "t_station_1"
+label = "station 1 processing"
+
+[[net.transitions]]
+id = "t_station_2"
+label = "station 2 processing"
+
+[[net.transitions]]
+id = "t_inspect"
+label = "inspect part"
+
+[[net.transitions]]
+id = "t_ship"
+label = "ship part"
+
+[[net.transitions]]
+id = "t_rework"
+label = "rework part"
+
+[[net.arcs]]
+src = "p_raw"
+dst = "t_station_1"
+[[net.arcs]]
+src = "t_station_1"
+dst = "p_s1_done"
+
+[[net.arcs]]
+src = "p_s1_done"
+dst = "t_station_2"
+[[net.arcs]]
+src = "t_station_2"
+dst = "p_s2_done"
+
+[[net.arcs]]
+src = "p_s2_done"
+dst = "t_inspect"
+[[net.arcs]]
+src = "t_inspect"
+dst = "p_inspection_ready"
+
+# XOR routing: ship vs rework
+[[net.arcs]]
+src = "p_inspection_ready"
+dst = "t_ship"
+[[net.arcs]]
+src = "t_ship"
+dst = "p_shipped"
+
+[[net.arcs]]
+src = "p_inspection_ready"
+dst = "t_rework"
+[[net.arcs]]
+src = "t_rework"
+dst = "p_reworked"
+
+[traces]
+source = "inline"
+
+# High-quality parts ship
+[[traces.inline]]
+attributes = { quality_score = "0.92" }
+events = ["station 1 processing", "station 2 processing", "inspect part", "ship part"]
+[[traces.inline]]
+attributes = { quality_score = "0.85" }
+events = ["station 1 processing", "station 2 processing", "inspect part", "ship part"]
+[[traces.inline]]
+attributes = { quality_score = "0.78" }
+events = ["station 1 processing", "station 2 processing", "inspect part", "ship part"]
+[[traces.inline]]
+attributes = { quality_score = "0.95" }
+events = ["station 1 processing", "station 2 processing", "inspect part", "ship part"]
+[[traces.inline]]
+attributes = { quality_score = "0.81" }
+events = ["station 1 processing", "station 2 processing", "inspect part", "ship part"]
+[[traces.inline]]
+attributes = { quality_score = "0.88" }
+events = ["station 1 processing", "station 2 processing", "inspect part", "ship part"]
+
+# Low-quality parts get reworked
+[[traces.inline]]
+attributes = { quality_score = "0.08" }
+events = ["station 1 processing", "station 2 processing", "inspect part", "rework part"]
+[[traces.inline]]
+attributes = { quality_score = "0.21" }
+events = ["station 1 processing", "station 2 processing", "inspect part", "rework part"]
+[[traces.inline]]
+attributes = { quality_score = "0.33" }
+events = ["station 1 processing", "station 2 processing", "inspect part", "rework part"]
+[[traces.inline]]
+attributes = { quality_score = "0.12" }
+events = ["station 1 processing", "station 2 processing", "inspect part", "rework part"]
+[[traces.inline]]
+attributes = { quality_score = "0.04" }
+events = ["station 1 processing", "station 2 processing", "inspect part", "rework part"]
+[[traces.inline]]
+attributes = { quality_score = "0.27" }
+events = ["station 1 processing", "station 2 processing", "inspect part", "rework part"]
+
+[training.input_marking]
+p_inspection_ready = { attribute = "quality_score" }
+
+[training]
+steps = 1500
+lr = 0.1
+sharpness = 1.0
+firing = "sigmoid"
+routing = "independent"
+num_steps = 0
+seed = 0
+
+[interpretability]
+extract_xor_rules = true
+extract_and_join_rules = false

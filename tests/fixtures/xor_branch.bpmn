@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <process id="p_xor" isExecutable="true">
+    <startEvent id="start"/>
+    <exclusiveGateway id="xor_split" name="Route"/>
+    <task id="taskA" name="Path A"/>
+    <task id="taskB" name="Path B"/>
+    <exclusiveGateway id="xor_join" name="Merge"/>
+    <endEvent id="end"/>
+    <sequenceFlow id="f0" sourceRef="start" targetRef="xor_split"/>
+    <sequenceFlow id="fA1" sourceRef="xor_split" targetRef="taskA"/>
+    <sequenceFlow id="fB1" sourceRef="xor_split" targetRef="taskB"/>
+    <sequenceFlow id="fA2" sourceRef="taskA" targetRef="xor_join"/>
+    <sequenceFlow id="fB2" sourceRef="taskB" targetRef="xor_join"/>
+    <sequenceFlow id="fEnd" sourceRef="xor_join" targetRef="end"/>
+  </process>
+</definitions>

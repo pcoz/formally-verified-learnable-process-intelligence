@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Two-pool collaboration: customer places an order; vendor receives it,
+  processes it, and sends a confirmation back. Each pool is its own
+  workflow; two cross-pool message flows (order, confirmation) wire
+  them together. The composed Petri net interleaves the pools at the
+  shared message places: vendor cannot process the order before the
+  customer sends it, and customer cannot finish before vendor confirms.
+-->
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <collaboration id="collab">
+    <participant id="customer" name="Customer" processRef="p_customer"/>
+    <participant id="vendor" name="Vendor" processRef="p_vendor"/>
+    <messageFlow id="order" name="Order"
+                 sourceRef="send_order" targetRef="receive_order"/>
+    <messageFlow id="confirmation" name="Confirmation"
+                 sourceRef="send_confirmation" targetRef="receive_confirmation"/>
+  </collaboration>
+
+  <process id="p_customer" isExecutable="true">
+    <startEvent id="c_start"/>
+    <sendTask id="send_order" name="Send order"/>
+    <receiveTask id="receive_confirmation" name="Receive confirmation"/>
+    <endEvent id="c_end"/>
+    <sequenceFlow id="c_f1" sourceRef="c_start" targetRef="send_order"/>
+    <sequenceFlow id="c_f2" sourceRef="send_order" targetRef="receive_confirmation"/>
+    <sequenceFlow id="c_f3" sourceRef="receive_confirmation" targetRef="c_end"/>
+  </process>
+
+  <process id="p_vendor" isExecutable="true">
+    <startEvent id="v_start"/>
+    <receiveTask id="receive_order" name="Receive order"/>
+    <task id="process_order" name="Process order"/>
+    <sendTask id="send_confirmation" name="Send confirmation"/>
+    <endEvent id="v_end"/>
+    <sequenceFlow id="v_f1" sourceRef="v_start" targetRef="receive_order"/>
+    <sequenceFlow id="v_f2" sourceRef="receive_order" targetRef="process_order"/>
+    <sequenceFlow id="v_f3" sourceRef="process_order" targetRef="send_confirmation"/>
+    <sequenceFlow id="v_f4" sourceRef="send_confirmation" targetRef="v_end"/>
+  </process>
+</definitions>

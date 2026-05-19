@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Traces over xor_branch.bpmn. Each trace carries a risk_score in [0,1]
+  that drives the XOR routing: scores >= 0.5 take Path A, scores < 0.5
+  take Path B. Training should recover this conditional routing.
+-->
+<log xmlns="http://www.xes-standard.org/" xes.version="2.0">
+  <trace>
+    <string key="concept:name" value="case-A1"/>
+    <float key="risk_score" value="0.92"/>
+    <event><string key="concept:name" value="Path A"/></event>
+  </trace>
+  <trace>
+    <string key="concept:name" value="case-A2"/>
+    <float key="risk_score" value="0.81"/>
+    <event><string key="concept:name" value="Path A"/></event>
+  </trace>
+  <trace>
+    <string key="concept:name" value="case-A3"/>
+    <float key="risk_score" value="0.78"/>
+    <event><string key="concept:name" value="Path A"/></event>
+  </trace>
+  <trace>
+    <string key="concept:name" value="case-A4"/>
+    <float key="risk_score" value="0.95"/>
+    <event><string key="concept:name" value="Path A"/></event>
+  </trace>
+  <trace>
+    <string key="concept:name" value="case-A5"/>
+    <float key="risk_score" value="0.66"/>
+    <event><string key="concept:name" value="Path A"/></event>
+  </trace>
+  <trace>
+    <string key="concept:name" value="case-A6"/>
+    <float key="risk_score" value="0.88"/>
+    <event><string key="concept:name" value="Path A"/></event>
+  </trace>
+  <trace>
+    <string key="concept:name" value="case-B1"/>
+    <float key="risk_score" value="0.08"/>
+    <event><string key="concept:name" value="Path B"/></event>
+  </trace>
+  <trace>
+    <string key="concept:name" value="case-B2"/>
+    <float key="risk_score" value="0.21"/>
+    <event><string key="concept:name" value="Path B"/></event>
+  </trace>
+  <trace>
+    <string key="concept:name" value="case-B3"/>
+    <float key="risk_score" value="0.33"/>
+    <event><string key="concept:name" value="Path B"/></event>
+  </trace>
+  <trace>
+    <string key="concept:name" value="case-B4"/>
+    <float key="risk_score" value="0.12"/>
+    <event><string key="concept:name" value="Path B"/></event>
+  </trace>
+  <trace>
+    <string key="concept:name" value="case-B5"/>
+    <float key="risk_score" value="0.04"/>
+    <event><string key="concept:name" value="Path B"/></event>
+  </trace>
+  <trace>
+    <string key="concept:name" value="case-B6"/>
+    <float key="risk_score" value="0.27"/>
+    <event><string key="concept:name" value="Path B"/></event>
+  </trace>
+</log>

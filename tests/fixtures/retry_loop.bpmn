@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Retry loop pattern. Task "Attempt operation" runs, then an XOR
+  gateway routes the token either to the success path (ending the
+  process) or back to the same task for another attempt. The XOR's
+  back-edge is what makes the resulting Petri net cyclic; it requires
+  the time-unrolled forward pass (PetriNetModule num_steps > 0) to
+  compile.
+-->
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <process id="p_retry" isExecutable="true">
+    <startEvent id="start"/>
+    <exclusiveGateway id="join" name="Try again"/>
+    <task id="attempt" name="Attempt operation"/>
+    <exclusiveGateway id="check" name="Succeeded?"/>
+    <endEvent id="end_ok"/>
+
+    <sequenceFlow id="f_start" sourceRef="start" targetRef="join"/>
+    <sequenceFlow id="f_join_attempt" sourceRef="join" targetRef="attempt"/>
+    <sequenceFlow id="f_attempt_check" sourceRef="attempt" targetRef="check"/>
+    <sequenceFlow id="f_retry" sourceRef="check" targetRef="join"/>
+    <sequenceFlow id="f_ok" sourceRef="check" targetRef="end_ok"/>
+  </process>
+</definitions>

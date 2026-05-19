@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Error boundary event pattern. The "risky" task either succeeds
+  (normal sequenceFlow to end_ok) or its error boundary fires and
+  routes the token through an error_handler task to end_failed.
+
+  In the Petri net this is the same shape as the saga subnet, but
+  driven by sequenceFlow on the boundary (no association needed):
+  the boundary event has its own outgoing sequenceFlow to the
+  handler, and the parser creates a competing transition from the
+  task's input place to the boundary's outgoing flow's place.
+-->
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <process id="p_error" isExecutable="true">
+    <startEvent id="start"/>
+    <task id="risky" name="Risky operation"/>
+    <task id="error_handler" name="Handle error"/>
+    <boundaryEvent id="bnd_err" attachedToRef="risky" name="On error">
+      <errorEventDefinition/>
+    </boundaryEvent>
+    <endEvent id="end_ok"/>
+    <endEvent id="end_failed"/>
+
+    <sequenceFlow id="f_start" sourceRef="start" targetRef="risky"/>
+    <sequenceFlow id="f_ok" sourceRef="risky" targetRef="end_ok"/>
+    <sequenceFlow id="f_err" sourceRef="bnd_err" targetRef="error_handler"/>
+    <sequenceFlow id="f_handled" sourceRef="error_handler" targetRef="end_failed"/>
+  </process>
+</definitions>

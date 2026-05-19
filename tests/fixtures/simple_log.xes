@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<log xmlns="http://www.xes-standard.org/" xes.version="2.0">
+  <trace>
+    <string key="concept:name" value="case-001"/>
+    <event>
+      <string key="concept:name" value="Do work"/>
+      <date key="time:timestamp" value="2026-01-01T10:00:00"/>
+    </event>
+  </trace>
+  <trace>
+    <string key="concept:name" value="case-002"/>
+    <event>
+      <string key="concept:name" value="Do work"/>
+      <date key="time:timestamp" value="2026-01-01T11:00:00"/>
+    </event>
+  </trace>
+  <trace>
+    <string key="concept:name" value="case-003"/>
+    <event>
+      <string key="concept:name" value="Do work"/>
+      <date key="time:timestamp" value="2026-01-01T12:00:00"/>
+    </event>
+  </trace>
+  <trace>
+    <string key="concept:name" value="case-004"/>
+    <event>
+      <string key="concept:name" value="Do work"/>
+      <date key="time:timestamp" value="2026-01-01T13:00:00"/>
+    </event>
+  </trace>
+</log>

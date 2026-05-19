@@ -1,0 +1,165 @@
+# MAPK-like kinase signalling cascade — non-BPMN scenario validating
+# the framing claim that the substrate works on any place/transition
+# graph. Real-world-faithful: the cascade structure follows the
+# canonical MAPK cascade as described in cell-signalling literature
+# (receptor → MAPKKK → MAPKK → MAPK), simplified to a two-pathway
+# routing decision that depends on signal strength.
+
+[scenario]
+name = "biological_signalling_cascade"
+description = "Kinase signalling cascade with strength-dependent fast/slow pathway routing"
+
+[net]
+source = "inline"
+
+[[net.places]]
+id = "p_signal"
+tokens = 1
+label = "bound ligand"
+
+[[net.places]]
+id = "p_kinase_active"
+label = "kinase phosphorylated"
+
+[[net.places]]
+id = "p_intermediate_active"
+label = "intermediate kinase active"
+
+[[net.places]]
+id = "p_fast_effector"
+label = "fast effector active"
+
+[[net.places]]
+id = "p_slow_effector"
+label = "slow effector active"
+
+[[net.transitions]]
+id = "t_phosphorylate"
+label = "phosphorylate kinase"
+
+[[net.transitions]]
+id = "t_fast_pathway"
+label = "fast pathway"
+
+[[net.transitions]]
+id = "t_slow_pathway"
+label = "slow pathway"
+
+[[net.transitions]]
+id = "t_slow_finalise"
+label = "slow effector activation"
+
+[[net.arcs]]
+src = "p_signal"
+dst = "t_phosphorylate"
+
+[[net.arcs]]
+src = "t_phosphorylate"
+dst = "p_kinase_active"
+
+[[net.arcs]]
+src = "p_kinase_active"
+dst = "t_fast_pathway"
+
+[[net.arcs]]
+src = "t_fast_pathway"
+dst = "p_fast_effector"
+
+[[net.arcs]]
+src = "p_kinase_active"
+dst = "t_slow_pathway"
+
+[[net.arcs]]
+src = "t_slow_pathway"
+dst = "p_intermediate_active"
+
+[[net.arcs]]
+src = "p_intermediate_active"
+dst = "t_slow_finalise"
+
+[[net.arcs]]
+src = "t_slow_finalise"
+dst = "p_slow_effector"
+
+[traces]
+source = "inline"
+
+[[traces.inline]]
+attributes = { signal_strength = "0.92" }
+events = ["phosphorylate kinase", "fast pathway"]
+
+[[traces.inline]]
+attributes = { signal_strength = "0.85" }
+events = ["phosphorylate kinase", "fast pathway"]
+
+[[traces.inline]]
+attributes = { signal_strength = "0.78" }
+events = ["phosphorylate kinase", "fast pathway"]
+
+[[traces.inline]]
+attributes = { signal_strength = "0.95" }
+events = ["phosphorylate kinase", "fast pathway"]
+
+[[traces.inline]]
+attributes = { signal_strength = "0.68" }
+events = ["phosphorylate kinase", "fast pathway"]
+
+[[traces.inline]]
+attributes = { signal_strength = "0.71" }
+events = ["phosphorylate kinase", "fast pathway"]
+
+[[traces.inline]]
+attributes = { signal_strength = "0.83" }
+events = ["phosphorylate kinase", "fast pathway"]
+
+[[traces.inline]]
+attributes = { signal_strength = "0.88" }
+events = ["phosphorylate kinase", "fast pathway"]
+
+[[traces.inline]]
+attributes = { signal_strength = "0.08" }
+events = ["phosphorylate kinase", "slow pathway", "slow effector activation"]
+
+[[traces.inline]]
+attributes = { signal_strength = "0.21" }
+events = ["phosphorylate kinase", "slow pathway", "slow effector activation"]
+
+[[traces.inline]]
+attributes = { signal_strength = "0.33" }
+events = ["phosphorylate kinase", "slow pathway", "slow effector activation"]
+
+[[traces.inline]]
+attributes = { signal_strength = "0.12" }
+events = ["phosphorylate kinase", "slow pathway", "slow effector activation"]
+
+[[traces.inline]]
+attributes = { signal_strength = "0.04" }
+events = ["phosphorylate kinase", "slow pathway", "slow effector activation"]
+
+[[traces.inline]]
+attributes = { signal_strength = "0.27" }
+events = ["phosphorylate kinase", "slow pathway", "slow effector activation"]
+
+[[traces.inline]]
+attributes = { signal_strength = "0.15" }
+events = ["phosphorylate kinase", "slow pathway", "slow effector activation"]
+
+[[traces.inline]]
+attributes = { signal_strength = "0.31" }
+events = ["phosphorylate kinase", "slow pathway", "slow effector activation"]
+
+[training]
+steps = 1500
+lr = 0.1
+sharpness = 1.0
+firing = "sigmoid"
+routing = "independent"
+num_steps = 0
+seed = 0
+
+[training.input_marking]
+p_signal = { attribute = "signal_strength" }
+
+[interpretability]
+extract_xor_rules = true
+extract_and_join_rules = false

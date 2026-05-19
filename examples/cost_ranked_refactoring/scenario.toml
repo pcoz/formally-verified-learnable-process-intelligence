@@ -1,0 +1,153 @@
+# Cost-ranked variant search — point #6 of the ROADMAP framing.
+#
+# A loan-approval process. The structural topology is identical
+# across two variants (so the bisimulation checker confirms them
+# behaviourally equivalent before training). The variants differ
+# only in their per-transition cost weights — representing two
+# *implementation choices* of the same process (e.g. in-house vs
+# outsourced underwriting; manual vs automated risk-check).
+#
+# After training on the same trace data, both variants compute the
+# same routing function. We attach each variant's cost weights and
+# read off expected-cost-to-completion. That is the
+# provably-safe-refactoring number: same behaviour, different cost.
+
+[scenario]
+name = "loan_approval_cost_ranking"
+description = "Two cost variants of the same loan-approval process; provably equivalent, demonstrably different cost."
+
+[net]
+source = "inline"
+
+[[net.places]]
+id = "p_submitted"
+tokens = 1
+label = "application submitted"
+[[net.places]]
+id = "p_triaged"
+label = "application triaged"
+[[net.places]]
+id = "p_assessed"
+label = "risk assessed"
+[[net.places]]
+id = "p_decided_approve"
+label = "approved"
+[[net.places]]
+id = "p_decided_decline"
+label = "declined"
+
+[[net.transitions]]
+id = "t_triage"
+label = "triage application"
+[[net.transitions]]
+id = "t_assess_risk"
+label = "assess risk"
+[[net.transitions]]
+id = "t_approve"
+label = "approve loan"
+[[net.transitions]]
+id = "t_decline"
+label = "decline loan"
+
+# Linear chain submitted → triaged → assessed → {approve, decline}
+[[net.arcs]]
+src = "p_submitted"
+dst = "t_triage"
+[[net.arcs]]
+src = "t_triage"
+dst = "p_triaged"
+
+[[net.arcs]]
+src = "p_triaged"
+dst = "t_assess_risk"
+[[net.arcs]]
+src = "t_assess_risk"
+dst = "p_assessed"
+
+[[net.arcs]]
+src = "p_assessed"
+dst = "t_approve"
+[[net.arcs]]
+src = "t_approve"
+dst = "p_decided_approve"
+
+[[net.arcs]]
+src = "p_assessed"
+dst = "t_decline"
+[[net.arcs]]
+src = "t_decline"
+dst = "p_decided_decline"
+
+[traces]
+source = "inline"
+
+# Strong applications get approved
+[[traces.inline]]
+attributes = { credit_score = "0.92" }
+events = ["triage application", "assess risk", "approve loan"]
+[[traces.inline]]
+attributes = { credit_score = "0.85" }
+events = ["triage application", "assess risk", "approve loan"]
+[[traces.inline]]
+attributes = { credit_score = "0.78" }
+events = ["triage application", "assess risk", "approve loan"]
+[[traces.inline]]
+attributes = { credit_score = "0.95" }
+events = ["triage application", "assess risk", "approve loan"]
+[[traces.inline]]
+attributes = { credit_score = "0.71" }
+events = ["triage application", "assess risk", "approve loan"]
+[[traces.inline]]
+attributes = { credit_score = "0.88" }
+events = ["triage application", "assess risk", "approve loan"]
+
+# Weak applications get declined
+[[traces.inline]]
+attributes = { credit_score = "0.18" }
+events = ["triage application", "assess risk", "decline loan"]
+[[traces.inline]]
+attributes = { credit_score = "0.24" }
+events = ["triage application", "assess risk", "decline loan"]
+[[traces.inline]]
+attributes = { credit_score = "0.31" }
+events = ["triage application", "assess risk", "decline loan"]
+[[traces.inline]]
+attributes = { credit_score = "0.08" }
+events = ["triage application", "assess risk", "decline loan"]
+[[traces.inline]]
+attributes = { credit_score = "0.27" }
+events = ["triage application", "assess risk", "decline loan"]
+[[traces.inline]]
+attributes = { credit_score = "0.14" }
+events = ["triage application", "assess risk", "decline loan"]
+
+[training.input_marking]
+p_assessed = { attribute = "credit_score" }
+
+[training]
+steps = 1500
+lr = 0.1
+sharpness = 1.0
+firing = "sigmoid"
+routing = "independent"
+num_steps = 0
+seed = 0
+
+# Per-variant cost weights, in domain units (e.g. dollars per
+# transition firing under each implementation).
+[cost_ranking.variant_a]
+description = "In-house implementation: high human-effort triage, expensive manual risk assessment"
+t_triage = 8.0
+t_assess_risk = 25.0
+t_approve = 5.0
+t_decline = 3.0
+
+[cost_ranking.variant_b]
+description = "Automated implementation: programmatic triage, ML-assisted risk assessment, same decisions"
+t_triage = 1.0
+t_assess_risk = 4.0
+t_approve = 2.0
+t_decline = 2.0
+
+[interpretability]
+extract_xor_rules = true

@@ -1,0 +1,42 @@
+# Python build artefacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+build/
+dist/
+
+# Test caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.cache/
+
+# Type-checker / linter caches
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+
+# Local Claude / IDE config — not for sharing
+.claude/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# WIP scratch — never publish
+*.wip
+*.scratch
+WIP_*
+SCRATCH_*
+NOTES_PRIVATE.md
+TODO_local.md

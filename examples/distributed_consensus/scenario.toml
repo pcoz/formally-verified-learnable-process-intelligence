@@ -1,0 +1,245 @@
+# Two-phase commit (2PC) — one coordinator, one participant.
+# Real-world structure: Gray's "Notes on Database Operating Systems"
+# (1978) / Bernstein-Hadzilacos-Goodman "Concurrency Control and
+# Recovery in Database Systems" (1987).
+#
+# Composed via the cross-pool Phase 5 pattern but built directly as a
+# single PetriNet (no BPMN parser). The coordinator and the
+# participant exchange three messages: prepare, vote, decision.
+#
+# Token-game (normal commit):
+#   p_co_start         -- t_co_send_prepare       --> p_co_waiting + p_msg_prepare
+#   p_part_idle + p_msg_prepare
+#                      -- t_part_decide_vote      --> p_part_voted + p_msg_vote
+#   p_co_waiting + p_msg_vote
+#                      -- t_co_decide             --> p_co_decided + p_msg_decision
+#   p_part_voted + p_msg_decision
+#                      -- t_part_apply_decision   --> p_part_done
+#
+# Attribute "vote" ∈ [0, 1] is the participant's vote (1.0 = yes, 0.0
+# = no). High vote should drive t_co_decide toward "commit"; low vote
+# should drive it toward "abort". For the training signal, we collapse
+# commit/abort into a single decided place — the routing decision is
+# whether the participant ended in `done` (committed) vs `aborted`.
+
+[scenario]
+name = "two_phase_commit"
+description = "2PC coordinator + participant, decision routes on vote"
+
+[net]
+source = "inline"
+
+# Coordinator pool
+[[net.places]]
+id = "p_co_start"
+tokens = 1
+label = "coordinator ready"
+
+[[net.places]]
+id = "p_co_waiting"
+label = "coordinator awaiting vote"
+
+[[net.places]]
+id = "p_co_committed"
+label = "coordinator committed"
+
+[[net.places]]
+id = "p_co_aborted"
+label = "coordinator aborted"
+
+# Participant pool
+[[net.places]]
+id = "p_part_idle"
+tokens = 1
+label = "participant idle"
+
+[[net.places]]
+id = "p_part_voted"
+label = "participant voted"
+
+[[net.places]]
+id = "p_part_done"
+label = "participant committed"
+
+[[net.places]]
+id = "p_part_aborted"
+label = "participant aborted"
+
+# Shared message places (cross-pool)
+[[net.places]]
+id = "p_msg_prepare"
+label = "prepare message"
+
+[[net.places]]
+id = "p_msg_vote"
+label = "vote message"
+
+[[net.places]]
+id = "p_msg_decision_commit"
+label = "commit decision"
+
+[[net.places]]
+id = "p_msg_decision_abort"
+label = "abort decision"
+
+# Transitions
+[[net.transitions]]
+id = "t_co_send_prepare"
+label = "send prepare"
+
+[[net.transitions]]
+id = "t_part_vote"
+label = "submit vote"
+
+[[net.transitions]]
+id = "t_co_decide_commit"
+label = "decide commit"
+
+[[net.transitions]]
+id = "t_co_decide_abort"
+label = "decide abort"
+
+[[net.transitions]]
+id = "t_part_commit"
+label = "apply commit"
+
+[[net.transitions]]
+id = "t_part_abort"
+label = "apply abort"
+
+# Coordinator sends prepare
+[[net.arcs]]
+src = "p_co_start"
+dst = "t_co_send_prepare"
+[[net.arcs]]
+src = "t_co_send_prepare"
+dst = "p_co_waiting"
+[[net.arcs]]
+src = "t_co_send_prepare"
+dst = "p_msg_prepare"
+
+# Participant votes after seeing prepare
+[[net.arcs]]
+src = "p_part_idle"
+dst = "t_part_vote"
+[[net.arcs]]
+src = "p_msg_prepare"
+dst = "t_part_vote"
+[[net.arcs]]
+src = "t_part_vote"
+dst = "p_part_voted"
+[[net.arcs]]
+src = "t_part_vote"
+dst = "p_msg_vote"
+
+# Coordinator decides commit (high vote) — consumes waiting + vote msg
+[[net.arcs]]
+src = "p_co_waiting"
+dst = "t_co_decide_commit"
+[[net.arcs]]
+src = "p_msg_vote"
+dst = "t_co_decide_commit"
+[[net.arcs]]
+src = "t_co_decide_commit"
+dst = "p_co_committed"
+[[net.arcs]]
+src = "t_co_decide_commit"
+dst = "p_msg_decision_commit"
+
+# Coordinator decides abort (low vote) — also consumes waiting + vote msg
+[[net.arcs]]
+src = "p_co_waiting"
+dst = "t_co_decide_abort"
+[[net.arcs]]
+src = "p_msg_vote"
+dst = "t_co_decide_abort"
+[[net.arcs]]
+src = "t_co_decide_abort"
+dst = "p_co_aborted"
+[[net.arcs]]
+src = "t_co_decide_abort"
+dst = "p_msg_decision_abort"
+
+# Participant applies the decision
+[[net.arcs]]
+src = "p_part_voted"
+dst = "t_part_commit"
+[[net.arcs]]
+src = "p_msg_decision_commit"
+dst = "t_part_commit"
+[[net.arcs]]
+src = "t_part_commit"
+dst = "p_part_done"
+
+[[net.arcs]]
+src = "p_part_voted"
+dst = "t_part_abort"
+[[net.arcs]]
+src = "p_msg_decision_abort"
+dst = "t_part_abort"
+[[net.arcs]]
+src = "t_part_abort"
+dst = "p_part_aborted"
+
+[traces]
+source = "inline"
+
+# High-vote → commit traces
+[[traces.inline]]
+attributes = { vote = "0.95" }
+events = ["send prepare", "submit vote", "decide commit", "apply commit"]
+[[traces.inline]]
+attributes = { vote = "0.88" }
+events = ["send prepare", "submit vote", "decide commit", "apply commit"]
+[[traces.inline]]
+attributes = { vote = "0.81" }
+events = ["send prepare", "submit vote", "decide commit", "apply commit"]
+[[traces.inline]]
+attributes = { vote = "0.92" }
+events = ["send prepare", "submit vote", "decide commit", "apply commit"]
+[[traces.inline]]
+attributes = { vote = "0.76" }
+events = ["send prepare", "submit vote", "decide commit", "apply commit"]
+[[traces.inline]]
+attributes = { vote = "0.84" }
+events = ["send prepare", "submit vote", "decide commit", "apply commit"]
+
+# Low-vote → abort traces
+[[traces.inline]]
+attributes = { vote = "0.05" }
+events = ["send prepare", "submit vote", "decide abort", "apply abort"]
+[[traces.inline]]
+attributes = { vote = "0.12" }
+events = ["send prepare", "submit vote", "decide abort", "apply abort"]
+[[traces.inline]]
+attributes = { vote = "0.21" }
+events = ["send prepare", "submit vote", "decide abort", "apply abort"]
+[[traces.inline]]
+attributes = { vote = "0.08" }
+events = ["send prepare", "submit vote", "decide abort", "apply abort"]
+[[traces.inline]]
+attributes = { vote = "0.18" }
+events = ["send prepare", "submit vote", "decide abort", "apply abort"]
+[[traces.inline]]
+attributes = { vote = "0.24" }
+events = ["send prepare", "submit vote", "decide abort", "apply abort"]
+
+# The vote attribute conditions BOTH the participant's vote message
+# AND (downstream) the coordinator's decision. Pin both via the input
+# marking — the vote message place is the structural carrier of the
+# routing signal once the message has been sent.
+[training.input_marking]
+p_msg_vote = { attribute = "vote" }
+
+[training]
+steps = 2000
+lr = 0.1
+sharpness = 1.0
+firing = "sigmoid"
+routing = "independent"
+num_steps = 0
+seed = 0
+
+[interpretability]
+extract_xor_rules = true
+extract_and_join_rules = true

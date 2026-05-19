@@ -1,0 +1,159 @@
+# Simplified PCR (polymerase chain reaction) protocol — a canonical
+# wet-lab molecular biology workflow with a quality-check decision.
+#
+# Real-world structure: PCR cycling described in Mullis et al., Cold
+# Spring Harbor Symposia on Quantitative Biology (1986). Each PCR
+# run goes through sample preparation, denaturation, annealing,
+# extension, and a final quality check (gel electrophoresis or qPCR
+# readout) that decides whether the sample is good for downstream
+# analysis or needs re-prep.
+#
+# Routing attribute: "amplification_quality" ∈ [0, 1]; high → accept
+# for sequencing, low → flag for re-prep.
+
+[scenario]
+name = "pcr_workflow"
+description = "Simplified PCR protocol with quality-driven accept/re-prep routing"
+
+[net]
+source = "inline"
+
+[[net.places]]
+id = "p_sample"
+tokens = 1
+label = "sample queued"
+[[net.places]]
+id = "p_denatured"
+label = "denatured DNA"
+[[net.places]]
+id = "p_annealed"
+label = "primers annealed"
+[[net.places]]
+id = "p_extended"
+label = "DNA extended"
+[[net.places]]
+id = "p_measured"
+label = "amplification measured"
+[[net.places]]
+id = "p_for_sequencing"
+label = "approved for sequencing"
+[[net.places]]
+id = "p_for_reprep"
+label = "flagged for re-prep"
+
+[[net.transitions]]
+id = "t_denature"
+label = "denature DNA"
+[[net.transitions]]
+id = "t_anneal"
+label = "anneal primers"
+[[net.transitions]]
+id = "t_extend"
+label = "extend DNA"
+[[net.transitions]]
+id = "t_measure"
+label = "measure amplification"
+[[net.transitions]]
+id = "t_accept"
+label = "accept sample"
+[[net.transitions]]
+id = "t_reject"
+label = "flag for re-prep"
+
+[[net.arcs]]
+src = "p_sample"
+dst = "t_denature"
+[[net.arcs]]
+src = "t_denature"
+dst = "p_denatured"
+
+[[net.arcs]]
+src = "p_denatured"
+dst = "t_anneal"
+[[net.arcs]]
+src = "t_anneal"
+dst = "p_annealed"
+
+[[net.arcs]]
+src = "p_annealed"
+dst = "t_extend"
+[[net.arcs]]
+src = "t_extend"
+dst = "p_extended"
+
+[[net.arcs]]
+src = "p_extended"
+dst = "t_measure"
+[[net.arcs]]
+src = "t_measure"
+dst = "p_measured"
+
+[[net.arcs]]
+src = "p_measured"
+dst = "t_accept"
+[[net.arcs]]
+src = "t_accept"
+dst = "p_for_sequencing"
+
+[[net.arcs]]
+src = "p_measured"
+dst = "t_reject"
+[[net.arcs]]
+src = "t_reject"
+dst = "p_for_reprep"
+
+[traces]
+source = "inline"
+
+[[traces.inline]]
+attributes = { amplification_quality = "0.93" }
+events = ["denature DNA", "anneal primers", "extend DNA", "measure amplification", "accept sample"]
+[[traces.inline]]
+attributes = { amplification_quality = "0.87" }
+events = ["denature DNA", "anneal primers", "extend DNA", "measure amplification", "accept sample"]
+[[traces.inline]]
+attributes = { amplification_quality = "0.79" }
+events = ["denature DNA", "anneal primers", "extend DNA", "measure amplification", "accept sample"]
+[[traces.inline]]
+attributes = { amplification_quality = "0.91" }
+events = ["denature DNA", "anneal primers", "extend DNA", "measure amplification", "accept sample"]
+[[traces.inline]]
+attributes = { amplification_quality = "0.68" }
+events = ["denature DNA", "anneal primers", "extend DNA", "measure amplification", "accept sample"]
+[[traces.inline]]
+attributes = { amplification_quality = "0.83" }
+events = ["denature DNA", "anneal primers", "extend DNA", "measure amplification", "accept sample"]
+
+[[traces.inline]]
+attributes = { amplification_quality = "0.12" }
+events = ["denature DNA", "anneal primers", "extend DNA", "measure amplification", "flag for re-prep"]
+[[traces.inline]]
+attributes = { amplification_quality = "0.24" }
+events = ["denature DNA", "anneal primers", "extend DNA", "measure amplification", "flag for re-prep"]
+[[traces.inline]]
+attributes = { amplification_quality = "0.31" }
+events = ["denature DNA", "anneal primers", "extend DNA", "measure amplification", "flag for re-prep"]
+[[traces.inline]]
+attributes = { amplification_quality = "0.08" }
+events = ["denature DNA", "anneal primers", "extend DNA", "measure amplification", "flag for re-prep"]
+[[traces.inline]]
+attributes = { amplification_quality = "0.18" }
+events = ["denature DNA", "anneal primers", "extend DNA", "measure amplification", "flag for re-prep"]
+[[traces.inline]]
+attributes = { amplification_quality = "0.27" }
+events = ["denature DNA", "anneal primers", "extend DNA", "measure amplification", "flag for re-prep"]
+
+[training.input_marking]
+p_measured = { attribute = "amplification_quality" }
+
+[training]
+steps = 1500
+lr = 0.1
+sharpness = 1.0
+firing = "sigmoid"
+routing = "independent"
+num_steps = 0
+seed = 0
+
+[interpretability]
+extract_xor_rules = true

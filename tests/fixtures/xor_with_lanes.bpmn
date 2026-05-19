@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Same XOR branching pattern as xor_branch.bpmn but wrapped in a
+  laneSet. Lanes are informational only — they organize the flow
+  nodes visually for swim-lane diagrams but have no control-flow
+  semantics. The parsed Petri net must match xor_branch.bpmn's
+  structure, with the laneSet element silently ignored.
+-->
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <process id="p_xor_lanes" isExecutable="true">
+    <laneSet id="lanes">
+      <lane id="lane_a" name="Team A">
+        <flowNodeRef>start</flowNodeRef>
+        <flowNodeRef>xor_split</flowNodeRef>
+        <flowNodeRef>taskA</flowNodeRef>
+      </lane>
+      <lane id="lane_b" name="Team B">
+        <flowNodeRef>taskB</flowNodeRef>
+        <flowNodeRef>xor_join</flowNodeRef>
+        <flowNodeRef>end</flowNodeRef>
+      </lane>
+    </laneSet>
+
+    <startEvent id="start"/>
+    <exclusiveGateway id="xor_split" name="Route"/>
+    <task id="taskA" name="Path A"/>
+    <task id="taskB" name="Path B"/>
+    <exclusiveGateway id="xor_join" name="Merge"/>
+    <endEvent id="end"/>
+
+    <sequenceFlow id="f0" sourceRef="start" targetRef="xor_split"/>
+    <sequenceFlow id="fA1" sourceRef="xor_split" targetRef="taskA"/>
+    <sequenceFlow id="fB1" sourceRef="xor_split" targetRef="taskB"/>
+    <sequenceFlow id="fA2" sourceRef="taskA" targetRef="xor_join"/>
+    <sequenceFlow id="fB2" sourceRef="taskB" targetRef="xor_join"/>
+    <sequenceFlow id="fEnd" sourceRef="xor_join" targetRef="end"/>
+  </process>
+</definitions>

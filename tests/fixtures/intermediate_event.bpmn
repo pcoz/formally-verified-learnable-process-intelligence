@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  A plain intermediate (catch) event between two tasks. Treated as a
+  pass-through transition: the same shape as a one-input, one-output
+  task. Used in BPMN to mark a wait state or a milestone; here it just
+  becomes another node in the control flow.
+-->
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <process id="p_intermediate" isExecutable="true">
+    <startEvent id="start"/>
+    <task id="prepare" name="Prepare"/>
+    <intermediateCatchEvent id="checkpoint" name="Checkpoint reached"/>
+    <task id="finalize" name="Finalize"/>
+    <endEvent id="end"/>
+
+    <sequenceFlow id="f1" sourceRef="start" targetRef="prepare"/>
+    <sequenceFlow id="f2" sourceRef="prepare" targetRef="checkpoint"/>
+    <sequenceFlow id="f3" sourceRef="checkpoint" targetRef="finalize"/>
+    <sequenceFlow id="f4" sourceRef="finalize" targetRef="end"/>
+  </process>
+</definitions>
