@@ -40,3 +40,7 @@ WIP_*
 SCRATCH_*
 NOTES_PRIVATE.md
 TODO_local.md
+
+# Per-session work notes — committed locally for continuity, never published
+session_notes/
+SESSION_NOTES_*.md
