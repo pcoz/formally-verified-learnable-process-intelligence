@@ -1,9 +1,10 @@
-# Developer Manual
+# PETRA Developer Manual
 
-How to use `petri_net_nn` — both the high-level adapter (TOML config →
-trained model) and the underlying framework modules. Treat
-`ROADMAP.md` as the *why*, this document as the *how*. Update this
-manual whenever a new module, scenario, or extension point is added.
+How to use **PETRA** (Petri-Net Trained Architecture) — both the
+high-level adapter (TOML config → trained model) and the underlying
+framework modules. Treat `ROADMAP.md` as the *why*, this document as
+the *how*. Update this manual whenever a new module, scenario, or
+extension point is added.
 
 ---
 
@@ -255,6 +256,8 @@ Current scenarios:
 | `network_protocol/` | Substrate covers protocol state machines; attack-pattern anomaly detection. |
 | `scientific_workflow/` | Substrate covers lab protocols; deviation analysis. |
 | `multi_agent_coordination/` | Three-pool composition covers contract-net coordination. |
+| `batch_packaging/` | Phase 9 multi-token markings: arc weight 6 batches bottles into crates. |
+| `resource_lock/` | Phase 9 inhibitor arcs: two clients race for a single shared resource. |
 | `cost_ranked_refactoring/` | Provably-safe refactoring via Phase 2 + `expected_cost`. |
 
 ---

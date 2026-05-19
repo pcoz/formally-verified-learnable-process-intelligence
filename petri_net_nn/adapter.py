@@ -246,7 +246,15 @@ def _load_net(spec: dict[str, Any], config_dir: Path) -> PetriNet:
         for transition in spec.get("transitions", []):
             net.add_transition(transition["id"], label=transition.get("label"))
         for arc in spec.get("arcs", []):
-            net.add_arc(arc["src"], arc["dst"])
+            weight = int(arc.get("weight", 1))
+            net.add_arc(arc["src"], arc["dst"], weight=weight)
+        # Inhibitor arcs: [[net.inhibitor_arcs]] place = "...", transition = "..."
+        # These declare a structural guard — the transition cannot fire
+        # while the place holds a token. They are not part of the flow
+        # relation, do not have weights, and are not consumed when the
+        # guarded transition fires.
+        for inh in spec.get("inhibitor_arcs", []):
+            net.add_inhibitor_arc(inh["place"], inh["transition"])
         return net
     raise ValueError(
         f"net.source must be 'bpmn_file' or 'inline', got {source!r}"

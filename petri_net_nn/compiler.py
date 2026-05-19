@@ -270,12 +270,19 @@ class PetriNetModule(nn.Module):
                     ]
                     softmaxed = F.softmax(torch.stack(pres, dim=0), dim=0)
                     for member, soft in zip(group, softmaxed):
+                        gate = self._inhibitor_gate(member, activations)
+                        if gate is not None:
+                            soft = soft * gate
                         if member == node:
                             activations[node] = soft
                         else:
                             softmax_cache[member] = soft
                 else:
-                    activations[node] = self._fire_fn(pre)
+                    fired = self._fire_fn(pre)
+                    gate = self._inhibitor_gate(node, activations)
+                    if gate is not None:
+                        fired = fired * gate
+                    activations[node] = fired
 
         return activations
 
@@ -288,6 +295,60 @@ class PetriNetModule(nn.Module):
         )
         theta = self.transition_thresholds[self._threshold_key[transition]]
         return self.sharpness * (weighted - theta)
+
+    def _inhibitor_gate(
+        self, transition: str, place_acts: dict[str, torch.Tensor]
+    ) -> torch.Tensor | None:
+        """Compute the multiplicative inhibitor gate for one transition.
+
+        In the discrete Petri-net world, an inhibitor arc from place p
+        to transition t means: t can fire only if p is empty. The
+        continuous relaxation we use here interprets place activations
+        as soft token-presence indicators in [0, 1]: a(p) = 1 means
+        "definitely a token here", a(p) = 0 means "definitely empty".
+        The corresponding soft inhibitor rule is therefore to multiply
+        the transition's firing strength by (1 - a(p)) — strong
+        activation in the inhibitor place drives the multiplier to
+        zero, suppressing the firing; weak activation leaves it
+        essentially untouched.
+
+        When a transition has multiple inhibitor places we multiply
+        the per-place gates together — semantically, *every* inhibitor
+        must be near-empty for the transition to fire, which matches
+        a product of (1 - a(p)) terms going to one.
+
+        Inhibitor arcs deliberately have no learnable weight: they are
+        a *structural* guard the modeller has declared, not a soft
+        relationship the network is asked to discover. Adding a
+        learnable weight would let training erode the guard, which
+        defeats the point of declaring it.
+
+        Returns ``None`` when the transition has no inhibitor arcs,
+        so the caller can skip the multiplication entirely (avoids
+        building unnecessary autograd ops in the common case).
+        """
+        inhibitors = self.net.inhibitor_preset(transition)
+        if not inhibitors:
+            return None
+        gate = None
+        for p in inhibitors:
+            # In acyclic single-pass mode, the topological order can
+            # visit a transition BEFORE its inhibitor place is computed
+            # (the inhibitor place may be filled by some OTHER
+            # downstream firing — typical of mutex patterns where two
+            # transitions guard each other against a shared
+            # "occupied" place that one of them will produce). For
+            # those cases the inhibitor place hasn't been computed
+            # yet, so we treat it as empty (no inhibition). The
+            # time-unrolled forward pass populates all places at
+            # every step, so on cyclic / multi-step runs the gate
+            # behaves as the standard Petri-net semantics requires.
+            if p not in place_acts:
+                continue
+            # (1 - a(p)) is the soft "place p is empty" indicator.
+            factor = 1.0 - place_acts[p]
+            gate = factor if gate is None else gate * factor
+        return gate
 
     def _forward_unrolled(
         self,
@@ -322,14 +383,19 @@ class PetriNetModule(nn.Module):
                         stacked = torch.stack([pre_acts[m] for m in group], dim=0)
                         softmaxed = F.softmax(stacked, dim=0)
                         for member, soft in zip(group, softmaxed):
-                            new_trans[member] = soft
+                            gate = self._inhibitor_gate(member, place_acts)
+                            new_trans[member] = soft if gate is None else soft * gate
                         handled.update(group)
                     else:
-                        new_trans[t] = self._fire_fn(pre_acts[t])
+                        fired = self._fire_fn(pre_acts[t])
+                        gate = self._inhibitor_gate(t, place_acts)
+                        new_trans[t] = fired if gate is None else fired * gate
                         handled.add(t)
             else:
                 for t, pre in pre_acts.items():
-                    new_trans[t] = self._fire_fn(pre)
+                    fired = self._fire_fn(pre)
+                    gate = self._inhibitor_gate(t, place_acts)
+                    new_trans[t] = fired if gate is None else fired * gate
             trans_acts = new_trans
 
             new_places: dict[str, torch.Tensor] = {}

@@ -1,11 +1,8 @@
-# Product Roadmap
+# PETRA Product Roadmap
 
-A research scaffold turning `petri-net-nn-architecture.md` into running
-code. Each phase has a goal, a list of deliverables, and a status
-marker. Phases run roughly sequentially but a later phase may start
-before an earlier one ends if the work is genuinely independent. The
-scoreboard in the README/summary tracks delivered work against spec
-sections.
+**PETRA** is Petri-Net Trained Architecture — a substrate for
+learning, verifying, explaining and cost-ranking the dynamics of
+discrete-event systems.
 
 ---
 
@@ -480,6 +477,182 @@ Tightened later:
   explicit weighted vote with per-input weights. The test trains an
   AND-join on its truth table and confirms the summary contains
   "all" and "2" (i.e. "fires when all 2 inputs are active").
+
+---
+
+# Phase 9 and beyond — where PETRA goes next
+
+Phases 1–8 closed the spec. Everything from §3 through §10 Step 4
+runs, with tests. The six phases below aren't about finishing the
+spec — they're about pushing PETRA into territory the spec didn't
+cover, because real users keep needing more than the spec asked for.
+
+One thing none of these phases include: any kind of visualisation,
+dashboard, or UI. Drawing the net, painting activations onto it,
+animating traces — that's the job of whatever application is
+consuming PETRA, not of PETRA itself. We stop at producing the
+numbers and the structure; rendering is somebody else's problem.
+
+---
+
+## Phase 9 — Richer models *(later)*
+
+Right now every place holds at most one token, tokens carry no data,
+firing has no duration, and there are no probabilities. That's
+enough for the BPMN-flavoured demos but excludes a lot of real
+systems. This phase fixes that.
+
+- [x] **Multi-token markings.** Arc multiplicities — one firing can
+  consume or produce N tokens per arc. The `batch_packaging` example
+  demonstrates a bottle-to-crate transition with input weight 6: the
+  transition waits for six tokens to accumulate before firing,
+  exactly as a real packaging line works.
+- [ ] **Coloured Petri nets.** Tokens carry typed data; transitions
+  read it; routing can depend on what's *in* the token, not just on
+  whether one is present. This is the single biggest expansion of
+  what PETRA can sensibly model — most real workflows route on data
+  (loan amount, patient acuity, packet contents), not just on
+  control-flow position.
+- [x] **Inhibitor arcs.** Declarative "fire only when this place is
+  empty" guards. The compiler implements them as a multiplicative
+  `(1 - a(p))` gate after firing. The `resource_lock` scenario uses
+  them to enforce a two-client mutex on a shared resource; in
+  time-unrolled mode the inhibitor place fills after one step and the
+  gate suppresses further firings.
+- [ ] **Stochastic firing rates.** Per-transition probabilities, for
+  throughput analysis and bottleneck detection.
+- [ ] **Transition durations.** Time on the wire. Combines with the
+  existing time-unrolled compiler from Phase 3 to give SLA-style
+  performance modelling.
+
+## Phase 10 — Connect to the rest of the world *(later)*
+
+There's a 25-year-old Petri-net ecosystem out there — CPN Tools,
+GreatSPN, TINA, ProM, Reactome, BPI Challenge — and PETRA currently
+ignores all of it. That's lazy. This phase makes PETRA a citizen of
+that ecosystem.
+
+- [ ] **PNML import and export.** PNML is *the* interchange format
+  for Petri nets. Adding it lets nets from any of the established
+  tools feed into PETRA and PETRA's output go back to them.
+- [ ] **BioPAX / SBGN / SIF.** Reactome pathway data, in the formats
+  biologists actually use. Replaces the hand-coded MAPK fixture
+  with real curated pathway content.
+- [ ] **Real BPI Challenge logs.** Download a public XES log (BPI
+  2012 or 2013 are good candidates), run PETRA on it end to end.
+  The strongest single piece of "this actually works on real data"
+  evidence we can produce.
+- [ ] **CSV / JSON trace adapters.** Most industrial logs aren't
+  XES. Adding straightforward CSV and JSON ingest cuts the
+  onboarding friction for non-process-mining users.
+
+## Phase 11 — Deeper formal methods *(later)*
+
+Strong bisimulation is the bare minimum. Real formal-methods workflows
+ask for more, and PETRA's claim to be the formal-verification-meets-ML
+story depends on having more to offer than the floor.
+
+- [ ] **Weak and branching bisimulation.** Treats internal silent
+  transitions correctly, so a refactoring with different internal
+  structure but the same observable behaviour gets recognised as
+  equivalent. The strong-bisimulation we have today rejects these
+  as different nets.
+- [ ] **CTL and LTL property checking.** Temporal-logic invariants:
+  "eventually the order ships", "authentication always precedes
+  data access". You can't ask PETRA these questions today.
+- [ ] **Proper Aalst soundness verification.** Today's `validate()`
+  catches well-formedness; it doesn't actually check reachability,
+  proper completion, or boundedness against the formal definition.
+  This phase closes that gap.
+- [ ] **Deadlock localisation.** Pin a deadlock to a specific
+  subnet and marking, instead of just reporting that one exists.
+- [ ] **Coverability analysis.** For unbounded nets, identify
+  *which* places are the ones blowing up.
+
+## Phase 12 — Discovering the net from traces *(later)*
+
+PETRA currently demands a hand-coded or BPMN-supplied structure
+before it can do anything. This is a serious barrier — most users
+have logs but not models. Process-mining has solved structure
+discovery from logs; PETRA should plug into that.
+
+- [ ] **Alpha-miner integration.** The classic algorithm that
+  produces a Petri net from an event log. Feeds straight into
+  PETRA's compiler.
+- [ ] **Inductive miner integration.** The modern alternative.
+  Crucially, it produces guaranteed-sound nets — a natural pairing
+  with PETRA's substrate.
+- [ ] **Heuristic miner integration.** For real-world logs that
+  don't follow textbook patterns and have noise.
+- [ ] **Discover → verify → train, in one call.** A single entry
+  point that takes a log and walks the whole pipeline: mine the
+  structure, verify it's sound, compile it, train on the same log.
+  This is the biggest single change in *who can use PETRA*.
+
+## Phase 13 — Better explanations *(later)*
+
+Phase 8 distills XOR routing rules and AND-join quorum rules out of
+trained weights. That's a start. Real decision-support deployments
+need more.
+
+- [ ] **Counterfactual explanations.** "The model approved this
+  loan; what would the applicant have needed to change to be
+  declined?" Useful for compliance and customer-facing decisions.
+- [ ] **Confidence intervals on extracted rules.** Bootstrap the
+  training and report the distribution of crossover thresholds.
+  Required before anyone should trust a rule in production.
+- [ ] **Sensitivity analysis.** Which input matters most? Which
+  transition is the model leaning on hardest?
+- [ ] **Cross-variant comparison reports.** "These two variants
+  agree on 87% of the input domain; here's the band where they
+  diverge." Pairs naturally with the cost-ranked refactoring
+  scenario.
+- [ ] **Prose explanations.** Turn an `XORRule` or an anomaly
+  residual dict into a paragraph a non-technical reader can act on.
+
+## Phase 14 — Making PETRA usable in production *(later)*
+
+A passing test suite is not a deployable system. This phase covers
+everything between "the library works on a developer's laptop" and
+"a non-Python team can plug PETRA into their pipeline." No UI work —
+that's the consuming application's call.
+
+- [ ] **PyPI packaging.** `pip install petra`, proper versioning,
+  changelog.
+- [ ] **CI.** GitHub Actions running the suite on every push, across
+  the Python versions worth supporting.
+- [ ] **Auto-built documentation site.** Sphinx or MkDocs pulling
+  from docstrings plus the manual, published on GitHub Pages.
+- [ ] **ONNX export.** Trained `PetriNetModule` shipped to anywhere
+  ONNX runs — C++, Java, the browser.
+- [ ] **Streaming evaluator.** Consume a live event stream (Kafka,
+  webhook, file-tail) and emit anomaly scores in real time, instead
+  of needing a finished log.
+- [ ] **REST inference API.** A standard HTTP wrapper around a
+  trained module, for the inevitable non-Python consumers.
+- [ ] **Workflow-engine plugins.** Camunda, Activiti, Flowable —
+  train on production traces, push anomaly signals back into the
+  engine's monitoring layer. This is what turns the
+  cost-ranked-refactoring claim into something actually deployable.
+- [ ] **Process-mining tool bridges.** ProM, Celonis, Disco — pull
+  discovered models in, push trained PETRA modules out alongside
+  ordinary process-mining artefacts.
+
+---
+
+# What we are deliberately not building
+
+Three things sit outside every phase, on purpose.
+
+**No visualisation, no UI, no dashboards.** Petri-net diagrams,
+activation heatmaps, anomaly overlays, trace animation, web apps,
+desktop GUIs — none of this belongs in PETRA. PETRA produces numbers
+and structure; presenting them is the consuming application's job.
+
+**No continuous-time, continuous-state physics.** Fluid dynamics,
+classical mechanics, analogue control. Petri nets are discrete; if a
+problem has a sensible discretisation we'll catch it via Phase 9, but
+trying to model the underlying physics is the wrong tool.
 
 ---
 

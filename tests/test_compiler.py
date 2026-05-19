@@ -172,6 +172,76 @@ def test_retry_loop_eventually_activates_success_place():
     assert out["p_f_ok"].item() > 0.1
 
 
+def test_inhibitor_arc_suppresses_transition_when_place_activated():
+    """The compiler implements inhibitor arcs as a multiplicative gate:
+    transition activation is scaled by (1 - a(p)) for each inhibitor
+    place p. When the inhibitor place activation is high, the
+    transition's effective activation must be near zero."""
+    torch.manual_seed(0)
+    net = PetriNet()
+    net.add_place("p_input")
+    net.add_place("p_guard")
+    net.add_place("p_output")
+    net.add_transition("t_gated")
+    net.add_arc("p_input", "t_gated")
+    net.add_arc("t_gated", "p_output")
+    net.add_inhibitor_arc("p_guard", "t_gated")
+    module = PetriNetModule(net)
+
+    with torch.no_grad():
+        # Guard empty: transition activates normally.
+        ungated = module(
+            input_marking={
+                "p_input": torch.tensor([1.0]),
+                "p_guard": torch.tensor([0.0]),
+            }
+        )
+        # Guard full: transition activation should drop sharply.
+        gated = module(
+            input_marking={
+                "p_input": torch.tensor([1.0]),
+                "p_guard": torch.tensor([1.0]),
+            }
+        )
+
+    assert gated["t_gated"].item() < 0.05
+    assert ungated["t_gated"].item() > 0.5
+
+
+def test_inhibitor_gate_in_time_unrolled_mode_enforces_mutex():
+    """The mutex pattern: two transitions race for a shared 'critical'
+    place, each inhibited by it. In time-unrolled mode, after the
+    first step one transition has fired and 'critical' is occupied;
+    by the next step the inhibitor gate suppresses both transitions.
+    The result is that across the unrolled steps only one of the two
+    transitions accumulates significant activation."""
+    torch.manual_seed(0)
+    net = PetriNet()
+    net.add_place("p_a_pending", tokens=1)
+    net.add_place("p_b_pending", tokens=1)
+    net.add_place("p_critical")
+    net.add_place("p_a_done")
+    net.add_place("p_b_done")
+    for tid in ("t_serve_a", "t_serve_b"):
+        net.add_transition(tid)
+    net.add_arc("p_a_pending", "t_serve_a")
+    net.add_arc("t_serve_a", "p_critical")
+    net.add_arc("t_serve_a", "p_a_done")
+    net.add_arc("p_b_pending", "t_serve_b")
+    net.add_arc("t_serve_b", "p_critical")
+    net.add_arc("t_serve_b", "p_b_done")
+    net.add_inhibitor_arc("p_critical", "t_serve_a")
+    net.add_inhibitor_arc("p_critical", "t_serve_b")
+    module = PetriNetModule(net, num_steps=4, sharpness=2.0)
+    out = module()
+    # After the first step, p_critical accumulates activation from
+    # whichever transition fired more strongly; the inhibitor gate
+    # then suppresses both transitions in subsequent steps. The total
+    # activation in 'critical' should be bounded — not the sum of both
+    # full firings.
+    assert out["p_critical"].item() < 1.5
+
+
 def test_time_unrolled_input_marking_is_clamped_each_step():
     """If input_marking pins a place at 0.0 throughout the unroll, the
     rest of the network downstream of it should also stay near zero —

@@ -1,0 +1,154 @@
+# Batch packaging line — bottling and crating with a quality gate.
+#
+# Showcases the Phase 9 multi-token-markings feature: the crate
+# transition consumes 6 bottles per firing (arc weight 6). This is a
+# capacity-aware modelling pattern that 1-bounded Petri nets cannot
+# express without ugly workarounds.
+#
+# Flow:
+#   raw_bottle  -- t_fill --> filled_bottle
+#   filled_bottle (×6)  -- t_crate --> crate
+#   crate  -- t_inspect --> inspected_crate
+#   inspected_crate -- t_ship    --> shipped     (high quality_score)
+#   inspected_crate -- t_reject  --> reject_pile (low quality_score)
+#
+# Routing attribute: quality_score in [0, 1]; high → ship, low → reject.
+
+[scenario]
+name = "batch_packaging"
+description = "Bottling line with batch crating (6 bottles per crate) and quality-gated routing"
+
+[net]
+source = "inline"
+
+[[net.places]]
+id = "p_raw"
+tokens = 12
+label = "raw bottle queue"
+[[net.places]]
+id = "p_filled"
+label = "filled bottles"
+[[net.places]]
+id = "p_crate"
+label = "completed crate"
+[[net.places]]
+id = "p_inspected"
+label = "crate inspected"
+[[net.places]]
+id = "p_shipped"
+label = "shipped"
+[[net.places]]
+id = "p_rejected"
+label = "rejected"
+
+[[net.transitions]]
+id = "t_fill"
+label = "fill bottle"
+[[net.transitions]]
+id = "t_crate"
+label = "crate 6 bottles"
+[[net.transitions]]
+id = "t_inspect"
+label = "inspect crate"
+[[net.transitions]]
+id = "t_ship"
+label = "ship crate"
+[[net.transitions]]
+id = "t_reject"
+label = "reject crate"
+
+# Fill bottles one at a time
+[[net.arcs]]
+src = "p_raw"
+dst = "t_fill"
+[[net.arcs]]
+src = "t_fill"
+dst = "p_filled"
+
+# Crate transition consumes 6 filled bottles per firing (multi-token)
+[[net.arcs]]
+src = "p_filled"
+dst = "t_crate"
+weight = 6
+[[net.arcs]]
+src = "t_crate"
+dst = "p_crate"
+
+# Inspection
+[[net.arcs]]
+src = "p_crate"
+dst = "t_inspect"
+[[net.arcs]]
+src = "t_inspect"
+dst = "p_inspected"
+
+# Quality-gated routing
+[[net.arcs]]
+src = "p_inspected"
+dst = "t_ship"
+[[net.arcs]]
+src = "t_ship"
+dst = "p_shipped"
+
+[[net.arcs]]
+src = "p_inspected"
+dst = "t_reject"
+[[net.arcs]]
+src = "t_reject"
+dst = "p_rejected"
+
+[traces]
+source = "inline"
+
+[[traces.inline]]
+attributes = { quality_score = "0.93" }
+events = ["fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "crate 6 bottles", "inspect crate", "ship crate"]
+[[traces.inline]]
+attributes = { quality_score = "0.88" }
+events = ["fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "crate 6 bottles", "inspect crate", "ship crate"]
+[[traces.inline]]
+attributes = { quality_score = "0.81" }
+events = ["fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "crate 6 bottles", "inspect crate", "ship crate"]
+[[traces.inline]]
+attributes = { quality_score = "0.76" }
+events = ["fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "crate 6 bottles", "inspect crate", "ship crate"]
+[[traces.inline]]
+attributes = { quality_score = "0.69" }
+events = ["fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "crate 6 bottles", "inspect crate", "ship crate"]
+[[traces.inline]]
+attributes = { quality_score = "0.85" }
+events = ["fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "crate 6 bottles", "inspect crate", "ship crate"]
+
+[[traces.inline]]
+attributes = { quality_score = "0.12" }
+events = ["fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "crate 6 bottles", "inspect crate", "reject crate"]
+[[traces.inline]]
+attributes = { quality_score = "0.24" }
+events = ["fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "crate 6 bottles", "inspect crate", "reject crate"]
+[[traces.inline]]
+attributes = { quality_score = "0.08" }
+events = ["fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "crate 6 bottles", "inspect crate", "reject crate"]
+[[traces.inline]]
+attributes = { quality_score = "0.31" }
+events = ["fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "crate 6 bottles", "inspect crate", "reject crate"]
+[[traces.inline]]
+attributes = { quality_score = "0.18" }
+events = ["fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "crate 6 bottles", "inspect crate", "reject crate"]
+[[traces.inline]]
+attributes = { quality_score = "0.04" }
+events = ["fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "fill bottle", "crate 6 bottles", "inspect crate", "reject crate"]
+
+[training.input_marking]
+p_inspected = { attribute = "quality_score" }
+
+[training]
+steps = 1500
+lr = 0.1
+sharpness = 1.0
+firing = "sigmoid"
+routing = "independent"
+num_steps = 0
+seed = 0
+
+[interpretability]
+extract_xor_rules = true

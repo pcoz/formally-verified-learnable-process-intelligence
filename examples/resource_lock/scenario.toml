@@ -1,0 +1,141 @@
+# Resource-lock / mutex pattern — two clients compete for a single
+# shared resource (e.g. a database connection, a print head, a
+# physical robot arm). Showcases the Phase 9 inhibitor-arc feature.
+#
+# Without inhibitor arcs, the substrate could not express "do not
+# fire if this place already holds a token" directly. The closest
+# you could get was a chain of regular places and transitions
+# (token-passes-the-baton style) that doesn't compose cleanly.
+#
+# Net:
+#   p_a_pending  -- t_serve_a --> p_a_done + p_resource_busy
+#   p_b_pending  -- t_serve_b --> p_b_done + p_resource_busy
+#                  (each transition inhibited by p_resource_busy)
+#
+# Routing attribute: priority_a in [0, 1]. High → A wins; low → B
+# wins. The framework learns the routing from observed traces.
+
+[scenario]
+name = "resource_lock_mutex"
+description = "Two clients race for a single shared resource; inhibitor arcs enforce mutual exclusion."
+
+[net]
+source = "inline"
+
+[[net.places]]
+id = "p_a_pending"
+tokens = 1
+label = "client A request"
+[[net.places]]
+id = "p_b_pending"
+tokens = 1
+label = "client B request"
+[[net.places]]
+id = "p_resource_busy"
+label = "resource locked"
+[[net.places]]
+id = "p_a_done"
+label = "client A served"
+[[net.places]]
+id = "p_b_done"
+label = "client B served"
+
+[[net.transitions]]
+id = "t_serve_a"
+label = "serve client A"
+[[net.transitions]]
+id = "t_serve_b"
+label = "serve client B"
+
+[[net.arcs]]
+src = "p_a_pending"
+dst = "t_serve_a"
+[[net.arcs]]
+src = "t_serve_a"
+dst = "p_a_done"
+[[net.arcs]]
+src = "t_serve_a"
+dst = "p_resource_busy"
+
+[[net.arcs]]
+src = "p_b_pending"
+dst = "t_serve_b"
+[[net.arcs]]
+src = "t_serve_b"
+dst = "p_b_done"
+[[net.arcs]]
+src = "t_serve_b"
+dst = "p_resource_busy"
+
+# Inhibitor arcs — each transition is blocked when the resource is
+# already locked. Declarative mutual exclusion.
+[[net.inhibitor_arcs]]
+place = "p_resource_busy"
+transition = "t_serve_a"
+[[net.inhibitor_arcs]]
+place = "p_resource_busy"
+transition = "t_serve_b"
+
+[traces]
+source = "inline"
+
+# High priority → A served
+[[traces.inline]]
+attributes = { priority_a = "0.92" }
+events = ["serve client A"]
+[[traces.inline]]
+attributes = { priority_a = "0.85" }
+events = ["serve client A"]
+[[traces.inline]]
+attributes = { priority_a = "0.78" }
+events = ["serve client A"]
+[[traces.inline]]
+attributes = { priority_a = "0.95" }
+events = ["serve client A"]
+[[traces.inline]]
+attributes = { priority_a = "0.81" }
+events = ["serve client A"]
+[[traces.inline]]
+attributes = { priority_a = "0.88" }
+events = ["serve client A"]
+
+# Low priority → B served
+[[traces.inline]]
+attributes = { priority_a = "0.08" }
+events = ["serve client B"]
+[[traces.inline]]
+attributes = { priority_a = "0.21" }
+events = ["serve client B"]
+[[traces.inline]]
+attributes = { priority_a = "0.31" }
+events = ["serve client B"]
+[[traces.inline]]
+attributes = { priority_a = "0.12" }
+events = ["serve client B"]
+[[traces.inline]]
+attributes = { priority_a = "0.27" }
+events = ["serve client B"]
+[[traces.inline]]
+attributes = { priority_a = "0.18" }
+events = ["serve client B"]
+
+# Both transitions share the same input place attribute (the
+# priority signal). We pin priority on a non-input place that both
+# transitions read indirectly via the training loop.
+[training.input_marking]
+p_a_pending = { attribute = "priority_a" }
+
+[training]
+steps = 1500
+lr = 0.1
+sharpness = 1.0
+firing = "sigmoid"
+routing = "independent"
+# Inhibitor-arc semantics need time-unrolling: one step fires the
+# winning transition, the next step finds p_resource_busy occupied
+# and the inhibitor gate suppresses further firings.
+num_steps = 4
+seed = 0
+
+[interpretability]
+extract_xor_rules = false

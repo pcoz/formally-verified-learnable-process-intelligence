@@ -1,11 +1,13 @@
-# petri-net-dynamics
+# PETRA
+
+**Petri-Net Trained Architecture** — *formally-verified learnable
+process intelligence*.
 
 A research scaffold combining sound Petri-net substrates with neural-
 network training. The structural constraint — a verified place /
-transition graph — is what makes the framework able to learn dynamics
-over a much wider class of systems than its BPMN framing implies,
-with formal equivalence guarantees almost no other ML approach can
-claim.
+transition graph — is what makes PETRA able to learn dynamics over a
+much wider class of systems than its BPMN framing implies, with
+formal equivalence guarantees almost no other ML approach can claim.
 
 > If your problem can be expressed as a finite-state, terminating,
 > discrete-event system and you have observable traces of multiple
@@ -41,8 +43,6 @@ and compliance workflows, games with bounded state, contract /
 treaty / agreement workflows, scientific data pipelines, RPA scripts.
 
 ## What it cannot learn the dynamics of
-
-The framework is honest about its limits:
 
 - **Continuous-time / continuous-state systems** (fluid dynamics,
   classical mechanics, analogue control). Petri nets are discrete by
@@ -86,9 +86,11 @@ tool.
 | Detects structurally-grounded anomalies | weak | ✗ | ✓ |
 | Ranks behaviour-preserving variants by cost | ✗ | ✗ | ✓ |
 
-The bisimulation + cost-ranking combination is the one nobody else
-has running with tests. See `ROADMAP.md` point 6 for why that's a
-substantial capability (provably-safe process refactoring).
+The bisimulation + cost-ranking combination is what makes
+**provably-safe process refactoring** possible: refactor a process,
+prove the new version is behaviourally equivalent to the old one,
+then rank the variants by realised-execution cost. Nobody else has
+that running with tests.
 
 ---
 
