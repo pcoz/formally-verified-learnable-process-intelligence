@@ -600,10 +600,16 @@ that ecosystem.
 - [ ] **BioPAX / SBGN / SIF.** Reactome pathway data, in the formats
   biologists actually use. Replaces the hand-coded MAPK fixture
   with real curated pathway content.
-- [ ] **Real BPI Challenge logs.** Download a public XES log (BPI
-  2012 or 2013 are good candidates), run PETRA on it end to end.
-  The strongest single piece of "this actually works on real data"
-  evidence we can produce.
+- [x] **Real BPI Challenge logs.** The `incident_management`
+  scenario ships the actual BPI Challenge 2013 incidents log
+  (Volvo IT, 7,554 real ITIL tickets, 65k events) committed to
+  the repo as a 1.3 MB gzipped XES file. `parse_xes` reads gzip
+  transparently; the adapter gained `promote_event_attrs` (lift
+  event-level attributes like `impact` to trace level) and
+  `event_name_attr` (override event names from a different XES
+  attribute, e.g. `lifecycle:transition`). PETRA trains on the
+  full corpus in ~20 seconds; anomaly detection flags traces that
+  skip the Resolved step before Closing.
 - [ ] **CSV / JSON trace adapters.** Most industrial logs aren't
   XES. Adding straightforward CSV and JSON ingest cuts the
   onboarding friction for non-process-mining users.

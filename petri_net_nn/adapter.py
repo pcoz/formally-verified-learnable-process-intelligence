@@ -352,7 +352,48 @@ def _load_traces(spec: dict[str, Any], config_dir: Path) -> list[XESTrace]:
         path_value = spec.get("path")
         if not path_value:
             raise ValueError("traces.source='xes_file' requires 'path'")
-        return parse_xes(_resolve(path_value, config_dir))
+        traces = parse_xes(_resolve(path_value, config_dir))
+        # Public XES logs (BPI Challenge releases etc.) routinely
+        # ship thousands of traces. ``limit_traces`` lets a scenario
+        # cap the slice without modifying the source file — useful
+        # for keeping tests fast while still pointing at the real
+        # public dataset.
+        limit = spec.get("limit_traces")
+        if limit is not None:
+            traces = traces[: int(limit)]
+        # XES logs in the wild commonly carry routing-relevant
+        # information at the event level rather than the trace
+        # level (BPI 2013, for instance, attaches `impact` to every
+        # event but never to the trace itself). The training
+        # pipeline needs trace-level attributes, so this option
+        # promotes the specified event-level keys up to trace level
+        # by copying the value from the first event that has them.
+        promote = spec.get("promote_event_attrs", [])
+        if promote:
+            for trace in traces:
+                for key in promote:
+                    if key in trace.attributes:
+                        continue
+                    for event in trace.events:
+                        if key in event.attributes:
+                            trace.attributes[key] = event.attributes[key]
+                            break
+
+        # The default event name is XES `concept:name`. Some logs
+        # (BPI 2013 again) carry the lifecycle state in a separate
+        # attribute and `concept:name` only labels the high-level
+        # activity. This option overrides each event's `name` with
+        # the value of a different attribute, so transition labels
+        # in the net can match the meaningful state names rather
+        # than the source field PETRA defaulted to.
+        event_name_attr = spec.get("event_name_attr")
+        if event_name_attr:
+            for trace in traces:
+                for event in trace.events:
+                    override = event.attributes.get(event_name_attr)
+                    if override:
+                        event.name = override
+        return traces
     if source == "inline":
         out: list[XESTrace] = []
         for entry in spec.get("inline", []):

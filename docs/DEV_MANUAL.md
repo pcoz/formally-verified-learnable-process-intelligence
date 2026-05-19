@@ -281,6 +281,7 @@ Current scenarios:
 | `paint_shop/` | Phase 9 transition durations: a 3-step cure transition delays output. |
 | `priority_dispatch/` | Phase 9 stochastic firing rates: three handlers with rate priors. |
 | `credit_approval_coloured/` | Phase 9 coloured tokens: routing on the application amount carried by the token. |
+| `incident_management/` | Phase 10 — trains on the **real BPI Challenge 2013** incidents log (7,554 Volvo IT tickets), the actual public dataset. |
 | `cost_ranked_refactoring/` | Provably-safe refactoring via Phase 2 + `expected_cost`. |
 
 ---

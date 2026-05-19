@@ -81,6 +81,14 @@ def _load_xml(source: str | Path | IO[str] | IO[bytes]) -> ET.Element:
         path = Path(source)
         if not path.exists():
             raise FileNotFoundError(path)
+        # Real-world XES logs (BPI Challenge releases, 4TU.ResearchData
+        # dumps) are routinely distributed gzipped because the raw XML
+        # is large. Detect by suffix and stream through gzip transparently
+        # rather than forcing the user to decompress on disk first.
+        if path.suffix == ".gz":
+            import gzip
+            with gzip.open(os.fspath(path), "rt", encoding="utf-8") as fh:
+                return ET.fromstring(fh.read())
         return ET.parse(os.fspath(path)).getroot()
     return ET.fromstring(source)
 
