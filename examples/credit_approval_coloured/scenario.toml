@@ -58,8 +58,64 @@ dst = "t_decline"
 src = "t_decline"
 dst = "p_declined"
 
-# No traces / training section. The Phase 9 CPN extension lives at
-# the structural token-game level; the compiler stays scalar for
-# now. CPN-aware compiler integration is on the roadmap as a
-# follow-up. The test for this scenario exercises the coloured
-# token-game directly.
+# Inline training traces: a mix of high- and low-amount loan
+# applications. Each trace's `amount` attribute drives both the
+# input marking (a token at p_submitted) and the value channel
+# read by the compiled guards. The structural guards declared
+# above (>= 1000 for approve, < 1000 for decline) seed the
+# learnable thresholds; training refines them against the
+# observed routing in these traces.
+
+[traces]
+source = "inline"
+
+[[traces.inline]]
+attributes = { amount = "5000" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { amount = "12000" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { amount = "2500" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { amount = "8000" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { amount = "3200" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { amount = "1500" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { amount = "200" }
+events = ["decline loan"]
+[[traces.inline]]
+attributes = { amount = "750" }
+events = ["decline loan"]
+[[traces.inline]]
+attributes = { amount = "400" }
+events = ["decline loan"]
+[[traces.inline]]
+attributes = { amount = "900" }
+events = ["decline loan"]
+[[traces.inline]]
+attributes = { amount = "150" }
+events = ["decline loan"]
+[[traces.inline]]
+attributes = { amount = "600" }
+events = ["decline loan"]
+
+[training]
+steps = 800
+lr = 0.5
+sharpness = 1.0
+seed = 0
+
+# Every application starts as one token at p_submitted; the
+# `amount` attribute fixes the value carried by that token.
+[training.input_marking]
+p_submitted = { constant = 1.0 }
+
+[training.input_values]
+p_submitted = { attribute = "amount" }

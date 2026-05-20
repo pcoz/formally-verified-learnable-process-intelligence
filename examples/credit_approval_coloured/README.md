@@ -48,26 +48,45 @@ declarative in the model rather than emergent from training.
   PETRA brings (bisimulation, soundness, anomaly residuals on
   named elements).
 
-## Current scope
+## CPN-aware compiler
 
-This first delivery of CPN in PETRA sits at the structural
-token-game level. The compiler stays scalar — the trained network
-still treats place activation as a single value in [0, 1] rather
-than as a distribution over per-token values. CPN-aware compiler
-integration (where the trained network reads token values and
-routes on them) is a follow-up in the roadmap.
+This scenario also exercises the CPN-aware compiler: the trained
+network reads the application amount as a per-token value channel
+and routes on it through differentiable soft guards. Each
+structural guard contributes a learnable `nn.Parameter` threshold
+initialised at the TOML value (1000 here) and refined by training
+against the observed routing in the trace data.
 
-The scenario therefore exercises `fire_coloured` /
-`is_enabled_coloured` directly rather than driving the neural
-training loop. Future scenarios will use coloured tokens through
-training once the compiler is taught about them.
+The scenario's training section supplies a mix of high- and
+low-amount applications:
+
+```toml
+[training.input_marking]
+p_submitted = { constant = 1.0 }
+
+[training.input_values]
+p_submitted = { attribute = "amount" }
+```
+
+After training, the learned thresholds sit in the empirical
+decision band — between the largest observed decline (900) and the
+smallest observed approve (1500). On held-out amounts, the
+soft-guard routes correctly: amount 5000 fires `t_approve` and
+suppresses `t_decline`; amount 300 does the opposite.
+
+The token-game path (`fire_coloured` / `is_enabled_coloured`)
+keeps using the original callable guard, so the structural and
+trained views remain in sync: the declarative record is the
+trainable face of the same rule the callable encodes.
 
 ## Files
 
 - `scenario.toml` — net with declarative guards on the two
-  routing transitions
+  routing transitions plus training traces driving the
+  CPN-aware compiler
 - `../../tests/scenarios/test_credit_approval_coloured.py` —
-  adapter-driven test exercising the coloured token-game
+  adapter-driven tests for both the token-game path and the
+  CPN-aware compiler path
 
 ## Running
 

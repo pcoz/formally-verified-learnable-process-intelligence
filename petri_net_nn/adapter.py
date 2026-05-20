@@ -126,28 +126,24 @@ class ScenarioContext:
     traces: list[XESTrace]
     training: TrainingConfig
     input_marking_spec: dict[str, dict]
+    input_values_spec: dict[str, dict] = field(default_factory=dict)
     config: dict[str, Any] = field(default_factory=dict)
     config_dir: Path = field(default_factory=Path)
 
     def attribute_to_marking(self, trace: XESTrace) -> dict[str, float]:
-        marking: dict[str, float] = {}
-        for place, spec in self.input_marking_spec.items():
-            if "constant" in spec:
-                marking[place] = float(spec["constant"])
-            elif "attribute" in spec:
-                attr_name = spec["attribute"]
-                if attr_name not in trace.attributes:
-                    raise KeyError(
-                        f"trace missing attribute {attr_name!r} required "
-                        f"by input_marking for place {place!r}"
-                    )
-                marking[place] = float(trace.attributes[attr_name])
-            else:
-                raise ValueError(
-                    f"input_marking entry for {place!r} must declare "
-                    f"either 'attribute' or 'constant'; got {spec}"
-                )
-        return marking
+        return _resolve_attribute_spec(
+            trace, self.input_marking_spec, "input_marking"
+        )
+
+    def attribute_to_values(self, trace: XESTrace) -> dict[str, float]:
+        """Coloured-Petri-net analogue of ``attribute_to_marking``:
+        returns the scalar value carried by the token at each source
+        place. Reads the same spec form (``{attribute = "..."}`` or
+        ``{constant = ...}``) from the
+        ``[training.input_values]`` TOML section."""
+        return _resolve_attribute_spec(
+            trace, self.input_values_spec, "input_values"
+        )
 
     def compile(self) -> PetriNetModule:
         if self.training.seed is not None:
@@ -165,10 +161,14 @@ class ScenarioContext:
     ) -> tuple[PetriNetModule, list[float]]:
         if module is None:
             module = self.compile()
+        values_fn = (
+            self.attribute_to_values if self.input_values_spec else None
+        )
         losses = train_on_traces(
             module,
             self.traces,
             attribute_to_marking=self.attribute_to_marking,
+            attribute_to_values=values_fn,
             steps=self.training.steps,
             lr=self.training.lr,
         )
@@ -186,9 +186,44 @@ class ScenarioContext:
     def anomaly_score(
         self, module: PetriNetModule, trace: XESTrace
     ) -> dict[str, float]:
-        return anomaly_score(
-            module, trace, attribute_to_marking=self.attribute_to_marking
+        values_fn = (
+            self.attribute_to_values if self.input_values_spec else None
         )
+        return anomaly_score(
+            module,
+            trace,
+            attribute_to_marking=self.attribute_to_marking,
+            attribute_to_values=values_fn,
+        )
+
+
+def _resolve_attribute_spec(
+    trace: XESTrace,
+    spec_map: dict[str, dict],
+    section_name: str,
+) -> dict[str, float]:
+    """Shared resolver for input_marking / input_values specs. Each
+    entry is either ``{attribute = "name"}`` (read from the trace
+    attributes) or ``{constant = ...}`` (literal value). The trace's
+    `attributes` dict carries strings, so we coerce to float."""
+    out: dict[str, float] = {}
+    for place, spec in spec_map.items():
+        if "constant" in spec:
+            out[place] = float(spec["constant"])
+        elif "attribute" in spec:
+            attr_name = spec["attribute"]
+            if attr_name not in trace.attributes:
+                raise KeyError(
+                    f"trace missing attribute {attr_name!r} required by "
+                    f"{section_name} for place {place!r}"
+                )
+            out[place] = float(trace.attributes[attr_name])
+        else:
+            raise ValueError(
+                f"{section_name} entry for {place!r} must declare "
+                f"either 'attribute' or 'constant'; got {spec}"
+            )
+    return out
 
 
 def load_scenario(config_path: str | Path) -> ScenarioContext:
@@ -213,6 +248,7 @@ def load_scenario(config_path: str | Path) -> ScenarioContext:
     traces = _load_traces(config.get("traces", {}), config_dir)
     training_dict = config.get("training", {}) or {}
     input_marking_spec = training_dict.pop("input_marking", {}) or {}
+    input_values_spec = training_dict.pop("input_values", {}) or {}
     training = TrainingConfig(**{k: v for k, v in training_dict.items() if k in TrainingConfig.__dataclass_fields__})
 
     return ScenarioContext(
@@ -222,6 +258,7 @@ def load_scenario(config_path: str | Path) -> ScenarioContext:
         traces=traces,
         training=training,
         input_marking_spec=input_marking_spec,
+        input_values_spec=input_values_spec,
         config=config,
         config_dir=config_dir,
     )
@@ -315,12 +352,14 @@ def _load_net(spec: dict[str, Any], config_dir: Path) -> PetriNet:
             # value=1000.0}`` fires only when the token at p_in
             # carries a value at least 1000.0). Used by the
             # coloured token-game; transparent to the compiler.
+            guard_spec = transition.get("guard")
             net.add_transition(
                 transition["id"],
                 label=transition.get("label"),
                 duration=int(transition.get("duration", 1)),
                 rate=float(transition.get("rate", 1.0)),
-                guard=_build_guard(transition.get("guard")),
+                guard=_build_guard(guard_spec),
+                structural_guard=guard_spec,
             )
         for arc in spec.get("arcs", []):
             weight = int(arc.get("weight", 1))

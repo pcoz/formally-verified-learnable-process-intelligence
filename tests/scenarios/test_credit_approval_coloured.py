@@ -86,3 +86,64 @@ def test_batch_of_applications_each_routed_separately():
     after_decline = ctx.net.fire_coloured("t_decline", after_approve)
     assert "p_declined" in after_decline
     assert "p_submitted" not in after_decline
+
+
+# ---------------------------------------------------------------------------
+# CPN-aware compiler — the trained network reads token values and refines
+# the declared guard threshold from data.
+
+def test_compiled_module_exposes_learnable_guard_thresholds():
+    """Each structurally-guarded transition gets one nn.Parameter
+    threshold, initialised at the TOML value."""
+    ctx = load_scenario(SCENARIO)
+    module = ctx.compile()
+    # Two guards declared, so two parameters seeded.
+    assert set(module.guard_thresholds) == {"guard_theta_0", "guard_theta_1"}
+    # The seed values come from the TOML — both are 1000 in this
+    # scenario.
+    for key in module.guard_thresholds:
+        assert abs(module.guard_thresholds[key].item() - 1000.0) < 1e-6
+
+
+def test_training_drives_guard_thresholds_toward_observed_boundary():
+    """Training on a mix of high- and low-amount applications should
+    pull both guard thresholds toward the empirical boundary in
+    the data — somewhere between the largest decline (900) and
+    the smallest approve (1500). The hand-seeded 1000 should stay
+    in that band; what matters is that the gates correctly route
+    held-out values rather than that the threshold lands on any
+    exact number.
+
+    This is the load-bearing claim of the CPN-aware compiler: the
+    trained network reads per-token values and routes on them."""
+    import torch
+
+    ctx = load_scenario(SCENARIO)
+    module, losses = ctx.train()
+
+    # Training drove the loss down.
+    assert losses[-1] < losses[0]
+
+    # Both learned thresholds should sit in the empirical decision
+    # band — between the largest observed decline (900) and the
+    # smallest observed approve (1500).
+    for key in module.guard_thresholds:
+        learned = module.guard_thresholds[key].item()
+        assert 800.0 <= learned <= 1700.0, (
+            f"guard threshold {key} drifted out of band: {learned}"
+        )
+
+    # Held-out values should route correctly under the trained guards.
+    with torch.no_grad():
+        out = module(
+            input_marking={"p_submitted": torch.tensor([1.0, 1.0])},
+            input_values={"p_submitted": torch.tensor([5000.0, 300.0])},
+            batch_size=2,
+        )
+
+    # For amount 5000 (high), approve fires strongly, decline weakly.
+    assert out["t_approve"][0].item() > 0.7
+    assert out["t_decline"][0].item() < 0.3
+    # For amount 300 (low), decline fires strongly, approve weakly.
+    assert out["t_decline"][1].item() > 0.7
+    assert out["t_approve"][1].item() < 0.3

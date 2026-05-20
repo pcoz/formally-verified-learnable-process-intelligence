@@ -29,6 +29,39 @@ Two forward-pass modes:
   activations). Source places — those with empty preset — clamp to
   their input value at every step, so they behave as a persistent
   input layer.
+
+Coloured-Petri-net layer
+------------------------
+
+When a transition has a structural guard (declarative
+``{place, op, value}`` form), the compiler builds a *learnable*
+soft-guard alongside the standard firing equation: an
+``nn.Parameter`` threshold initialised at ``value`` and a sigmoid
+gate that multiplies the transition's firing strength by
+``sigmoid(s * sign * (value(place) - threshold))`` (sign = +1 for
+``>``/``>=``, −1 for ``<``/``<=``). The threshold trains end-to-end
+with the rest of the network, so the model can refine the
+declared boundary from execution traces. Guards declared as opaque
+callables stay transparent to the compiler (the token-game still
+uses them — they don't take part in training).
+
+To make value-conditioned routing trainable, the forward pass
+carries a per-place *value* channel alongside the activation
+channel. Source-place values come from the optional ``input_values``
+argument (default 1.0). Non-source places combine the values
+arriving on their incoming arcs into an activation-weighted average
+— the natural soft-token analogue of "what value would this place
+hold right now if a token were here." Output-arc values may be
+declared on the net (``arc_output_values``); constant scalars are
+honoured by the compiler, callable transforms are evaluated only
+in the discrete coloured token-game and treated as the default
+value 1.0 in the differentiable forward pass.
+
+The guard sigmoid scales sharpness by ``1 / max(|theta_init|, 1.0)``
+so the initial gradient at the boundary is in O(1) regardless of
+the units the modeller used. The same ``SharpnessScheduler`` from
+Phase 6 sharpens guards alongside firing transitions during
+training.
 """
 from __future__ import annotations
 
@@ -162,6 +195,44 @@ class PetriNetModule(nn.Module):
             theta_init = max(0.0, (n_inputs - 1) * 0.5)
             self.transition_thresholds[key] = nn.Parameter(torch.tensor(theta_init))
 
+        # Learnable soft-guard thresholds — one per transition with a
+        # structural guard. The TOML value seeds the parameter; training
+        # refines it. The per-guard sharpness scale (kept fixed at
+        # construction) keeps the sigmoid gradient at O(1) at the
+        # boundary regardless of the value units the modeller used.
+        self.guard_thresholds = nn.ParameterDict()
+        self._guard_meta: dict[str, dict] = {}
+        for i, t in enumerate(sorted(net.transitions)):
+            spec = net.transition_structural_guards.get(t)
+            if spec is None:
+                continue
+            op = spec["op"]
+            if op not in (">", ">=", "<", "<="):
+                raise ValueError(
+                    f"transition {t!r}: compiler only supports structural "
+                    f"guard ops in {{>, >=, <, <=}}; got {op!r}. "
+                    f"Equality / inequality guards must be expressed "
+                    f"as opaque callables (token-game only)."
+                )
+            place = spec["place"]
+            if place not in net.places:
+                raise ValueError(
+                    f"transition {t!r}: structural guard references "
+                    f"unknown place {place!r}"
+                )
+            init = float(spec["value"])
+            key = f"guard_theta_{i}"
+            self.guard_thresholds[key] = nn.Parameter(torch.tensor(init))
+            self._guard_meta[t] = {
+                "place": place,
+                "op": op,
+                "key": key,
+                # Auto-scale the sigmoid steepness so that learning is
+                # well-conditioned for guard thresholds in any unit
+                # (loan amounts in £, signal strengths in [0,1], etc).
+                "scale": 1.0 / max(abs(init), 1.0),
+            }
+
     @staticmethod
     def _toposort(net: PetriNet) -> tuple[str, ...]:
         ts: TopologicalSorter[str] = TopologicalSorter()
@@ -200,6 +271,7 @@ class PetriNetModule(nn.Module):
         self,
         input_marking: dict[str, torch.Tensor] | None = None,
         *,
+        input_values: dict[str, torch.Tensor] | None = None,
         batch_size: int | None = None,
     ) -> dict[str, torch.Tensor]:
         """Run a forward pass.
@@ -213,35 +285,64 @@ class PetriNetModule(nn.Module):
         which is how you clamp a "persistent input" through the
         unrolled dynamics — equivalent to the §7.1 "predict next
         activations from a partial execution" use case.
+
+        ``input_values`` feeds the per-place value channel that the
+        coloured-Petri-net layer reads. Each entry is a 1D tensor of
+        shape ``(batch_size,)`` giving the scalar value carried by
+        the token at that source place — loan amount, signal
+        strength, sensor reading, whatever the modeller chose. Any
+        source place absent from this dict defaults to value 1.0
+        (the value-carrying-no-information case, equivalent to a
+        plain unannotated token).
         """
         if input_marking is None:
             input_marking = {}
+        if input_values is None:
+            input_values = {}
 
         if batch_size is None:
             if input_marking:
                 batch_size = next(iter(input_marking.values())).shape[0]
+            elif input_values:
+                batch_size = next(iter(input_values.values())).shape[0]
             else:
                 batch_size = 1
 
         device = self._device()
 
         if self.num_steps == 0:
-            return self._forward_acyclic(input_marking, batch_size, device)
-        return self._forward_unrolled(input_marking, batch_size, device)
+            return self._forward_acyclic(
+                input_marking, input_values, batch_size, device
+            )
+        return self._forward_unrolled(
+            input_marking, input_values, batch_size, device
+        )
 
     def _forward_acyclic(
         self,
         input_marking: dict[str, torch.Tensor],
+        input_values: dict[str, torch.Tensor],
         batch_size: int,
         device: torch.device,
     ) -> dict[str, torch.Tensor]:
         assert self._order is not None
         activations: dict[str, torch.Tensor] = {}
+        # Parallel value channel — one scalar tensor per place. Source
+        # places read from input_values (default 1.0). Non-source
+        # places combine arriving values as an activation-weighted
+        # average of each contributing transition's output-arc value.
+        place_values: dict[str, torch.Tensor] = {}
         softmax_cache: dict[str, torch.Tensor] = {}
+
+        eps = 1e-6
 
         for node in self._order:
             if node in input_marking:
                 activations[node] = input_marking[node]
+                if node in self.net.places:
+                    place_values[node] = input_values.get(
+                        node, torch.ones(batch_size, device=device)
+                    )
                 continue
 
             if node in self.net.places:
@@ -250,12 +351,22 @@ class PetriNetModule(nn.Module):
                     activations[node] = self._source_activation(
                         node, input_marking, batch_size, device
                     )
+                    place_values[node] = input_values.get(
+                        node, torch.ones(batch_size, device=device)
+                    )
                 else:
                     contribs = [
                         self.arc_weights[self._arc_key[(t, node)]] * activations[t]
                         for t in preset
                     ]
                     activations[node] = sum(contribs)
+                    value_numerator = sum(
+                        self.arc_weights[self._arc_key[(t, node)]]
+                        * activations[t]
+                        * self._output_value(t, node, batch_size, device)
+                        for t in preset
+                    )
+                    place_values[node] = value_numerator / (activations[node] + eps)
             else:
                 if node in softmax_cache:
                     activations[node] = softmax_cache.pop(node)
@@ -273,6 +384,9 @@ class PetriNetModule(nn.Module):
                         gate = self._inhibitor_gate(member, activations)
                         if gate is not None:
                             soft = soft * gate
+                        gguard = self._guard_gate(member, place_values)
+                        if gguard is not None:
+                            soft = soft * gguard
                         if member == node:
                             activations[node] = soft
                         else:
@@ -282,6 +396,9 @@ class PetriNetModule(nn.Module):
                     gate = self._inhibitor_gate(node, activations)
                     if gate is not None:
                         fired = fired * gate
+                    gguard = self._guard_gate(node, place_values)
+                    if gguard is not None:
+                        fired = fired * gguard
                     activations[node] = fired
 
         return activations
@@ -303,6 +420,54 @@ class PetriNetModule(nn.Module):
         # the sigmoid / STE.
         rate = self.net.rate(transition)
         return rate * self.sharpness * (weighted - theta)
+
+    def _output_value(
+        self,
+        transition: str,
+        place: str,
+        batch_size: int,
+        device: torch.device,
+    ) -> torch.Tensor:
+        """Value carried by tokens this transition produces at ``place``.
+
+        Honours constant entries in ``arc_output_values`` directly.
+        Callable entries are evaluated only in the discrete coloured
+        token-game and treated as the default value 1.0 in the
+        differentiable forward pass — turning a Python callable into a
+        torch-friendly transform is a separate piece of work; for now
+        the modeller can express any constant they like and the
+        compiler will honour it."""
+        spec = self.net.arc_output_values.get((transition, place))
+        if spec is None or callable(spec):
+            return torch.ones(batch_size, device=device)
+        return torch.full((batch_size,), float(spec), device=device)
+
+    def _guard_gate(
+        self,
+        transition: str,
+        place_values: dict[str, torch.Tensor],
+    ) -> torch.Tensor | None:
+        """Soft-guard multiplier on a transition's firing strength.
+
+        Returns ``None`` for transitions with no structural guard
+        (so callers can skip the multiplication and keep autograd
+        clean in the common case). When the gate place's value
+        hasn't been computed yet (e.g. on the first step of a
+        time-unrolled run where an upstream transition hasn't fired)
+        we also return ``None`` — the activation gate will pick up
+        the slack and the guard re-engages once a value is available.
+        """
+        meta = self._guard_meta.get(transition)
+        if meta is None:
+            return None
+        v = place_values.get(meta["place"])
+        if v is None:
+            return None
+        theta = self.guard_thresholds[meta["key"]]
+        scaled = self.sharpness * meta["scale"] * (v - theta)
+        if meta["op"] in (">", ">="):
+            return torch.sigmoid(scaled)
+        return torch.sigmoid(-scaled)
 
     def _inhibitor_gate(
         self, transition: str, place_acts: dict[str, torch.Tensor]
@@ -361,6 +526,7 @@ class PetriNetModule(nn.Module):
     def _forward_unrolled(
         self,
         input_marking: dict[str, torch.Tensor],
+        input_values: dict[str, torch.Tensor],
         batch_size: int,
         device: torch.device,
     ) -> dict[str, torch.Tensor]:
@@ -372,6 +538,17 @@ class PetriNetModule(nn.Module):
             else torch.zeros(batch_size, device=device)
             for p in self.net.places
         }
+        # Initial place values: source places get their input_values
+        # (default 1.0); non-source places start at zero. Both update
+        # each step alongside place activations.
+        place_values: dict[str, torch.Tensor] = {}
+        for p in self.net.places:
+            if p in input_values:
+                place_values[p] = input_values[p]
+            elif not self.net.preset(p):
+                place_values[p] = torch.ones(batch_size, device=device)
+            else:
+                place_values[p] = torch.zeros(batch_size, device=device)
         trans_acts: dict[str, torch.Tensor] = {
             t: torch.zeros(batch_size, device=device) for t in self.net.transitions
         }
@@ -386,6 +563,8 @@ class PetriNetModule(nn.Module):
         in_flight: dict[str, list[torch.Tensor]] = {
             t: [] for t in self.net.transitions
         }
+
+        eps = 1e-6
 
         for _ in range(self.num_steps):
             pre_acts: dict[str, torch.Tensor] = {
@@ -403,18 +582,33 @@ class PetriNetModule(nn.Module):
                         softmaxed = F.softmax(stacked, dim=0)
                         for member, soft in zip(group, softmaxed):
                             gate = self._inhibitor_gate(member, place_acts)
-                            new_trans[member] = soft if gate is None else soft * gate
+                            if gate is not None:
+                                soft = soft * gate
+                            gguard = self._guard_gate(member, place_values)
+                            if gguard is not None:
+                                soft = soft * gguard
+                            new_trans[member] = soft
                         handled.update(group)
                     else:
                         fired = self._fire_fn(pre_acts[t])
                         gate = self._inhibitor_gate(t, place_acts)
-                        new_trans[t] = fired if gate is None else fired * gate
+                        if gate is not None:
+                            fired = fired * gate
+                        gguard = self._guard_gate(t, place_values)
+                        if gguard is not None:
+                            fired = fired * gguard
+                        new_trans[t] = fired
                         handled.add(t)
             else:
                 for t, pre in pre_acts.items():
                     fired = self._fire_fn(pre)
                     gate = self._inhibitor_gate(t, place_acts)
-                    new_trans[t] = fired if gate is None else fired * gate
+                    if gate is not None:
+                        fired = fired * gate
+                    gguard = self._guard_gate(t, place_values)
+                    if gguard is not None:
+                        fired = fired * gguard
+                    new_trans[t] = fired
 
             # Apply per-transition firing duration. For each transition
             # with duration D > 1, the firing computed *this* step
@@ -440,20 +634,38 @@ class PetriNetModule(nn.Module):
                         trans_acts[t] = torch.zeros_like(fired)
 
             new_places: dict[str, torch.Tensor] = {}
+            new_place_values: dict[str, torch.Tensor] = {}
             for p in self.net.places:
                 if p in input_marking:
                     new_places[p] = input_marking[p]
+                    # Persistent clamping also re-asserts the value
+                    # channel — same role as input_marking for
+                    # activations, just for values.
+                    new_place_values[p] = input_values.get(
+                        p, torch.ones(batch_size, device=device)
+                    )
                     continue
                 preset = self.net.preset(p)
                 if not preset:
                     new_places[p] = self._source_activation(
                         p, input_marking, batch_size, device
                     )
+                    new_place_values[p] = input_values.get(
+                        p, torch.ones(batch_size, device=device)
+                    )
                 else:
                     new_places[p] = sum(
                         self.arc_weights[self._arc_key[(t, p)]] * trans_acts[t]
                         for t in preset
                     )
+                    value_numerator = sum(
+                        self.arc_weights[self._arc_key[(t, p)]]
+                        * trans_acts[t]
+                        * self._output_value(t, p, batch_size, device)
+                        for t in preset
+                    )
+                    new_place_values[p] = value_numerator / (new_places[p] + eps)
             place_acts = new_places
+            place_values = new_place_values
 
         return {**place_acts, **trans_acts}

@@ -37,6 +37,7 @@ from petri_net_nn.xes import XESTrace
 
 
 AttributeToMarking = Callable[[XESTrace], dict[str, float]]
+AttributeToValues = Callable[[XESTrace], dict[str, float]]
 
 
 def _scored_transitions(net: PetriNet) -> list[str]:
@@ -80,6 +81,7 @@ def train_on_traces(
     traces: list[XESTrace],
     *,
     attribute_to_marking: AttributeToMarking,
+    attribute_to_values: AttributeToValues | None = None,
     steps: int = 500,
     lr: float = 0.1,
     transitions: list[str] | None = None,
@@ -90,7 +92,15 @@ def train_on_traces(
     The default supervision target is every transition whose label
     doesn't look auto-generated (i.e. doesn't contain ``->``); pass
     ``transitions`` to override that selection. Returns the per-step
-    loss trajectory."""
+    loss trajectory.
+
+    ``attribute_to_values`` is the coloured-Petri-net analogue of
+    ``attribute_to_marking``: it returns the scalar value carried by
+    the token at each source place for a given trace. Optional —
+    omit it for plain (uncoloured) training. When present, the
+    compiled module's learnable structural-guard thresholds train
+    against these values, so the model can refine the declared
+    threshold from data."""
     net = module.net
     scored = transitions if transitions is not None else _scored_transitions(net)
     if not scored:
@@ -100,6 +110,13 @@ def train_on_traces(
     input_marking = _stack_input_markings(
         [attribute_to_marking(t) for t in traces], device
     )
+    input_values = (
+        _stack_input_markings(
+            [attribute_to_values(t) for t in traces], device
+        )
+        if attribute_to_values is not None
+        else None
+    )
     targets = torch.stack(
         [trace_occurrence_vector(net, t, scored) for t in traces]
     ).to(device)
@@ -108,7 +125,11 @@ def train_on_traces(
     losses: list[float] = []
     for _ in range(steps):
         opt.zero_grad()
-        out = module(input_marking=input_marking, batch_size=len(traces))
+        out = module(
+            input_marking=input_marking,
+            input_values=input_values,
+            batch_size=len(traces),
+        )
         predicted = torch.stack([out[t] for t in scored], dim=1)
         loss = F.binary_cross_entropy(predicted.clamp(1e-6, 1 - 1e-6), targets)
         loss.backward()
@@ -208,6 +229,7 @@ def trace_anomaly_score(
     trace: XESTrace,
     *,
     attribute_to_marking: AttributeToMarking,
+    attribute_to_values: AttributeToValues | None = None,
     transitions: list[str] | None = None,
 ) -> float:
     """Trace-level scalar anomaly score: the sum of per-transition
@@ -216,6 +238,7 @@ def trace_anomaly_score(
     per_transition = anomaly_score(
         module, trace,
         attribute_to_marking=attribute_to_marking,
+        attribute_to_values=attribute_to_values,
         transitions=transitions,
     )
     return sum(per_transition.values())
@@ -271,6 +294,7 @@ def anomaly_score(
     trace: XESTrace,
     *,
     attribute_to_marking: AttributeToMarking,
+    attribute_to_values: AttributeToValues | None = None,
     transitions: list[str] | None = None,
 ) -> dict[str, float]:
     """Score one trace under a trained module. Returns a dict mapping
@@ -278,17 +302,31 @@ def anomaly_score(
     network's predicted activation and the trace's observed firing
     (0 or 1). Summing the values gives a single trace-level anomaly
     score; inspecting individual entries identifies *which* parts of
-    the process structure diverge — the §7.2 interpretability claim."""
+    the process structure diverge — the §7.2 interpretability claim.
+
+    ``attribute_to_values`` mirrors the same kwarg on
+    ``train_on_traces``: pass it when scoring coloured-Petri-net
+    traces so the trained guard thresholds get the value channel
+    they need to gate firings correctly."""
     net = module.net
     scored = transitions if transitions is not None else _scored_transitions(net)
 
     device = next(module.parameters()).device
     input_marking = _stack_input_markings([attribute_to_marking(trace)], device)
+    input_values = (
+        _stack_input_markings([attribute_to_values(trace)], device)
+        if attribute_to_values is not None
+        else None
+    )
     target = trace_occurrence_vector(net, trace, scored).to(device)
 
     module.eval()
     with torch.no_grad():
-        out = module(input_marking=input_marking, batch_size=1)
+        out = module(
+            input_marking=input_marking,
+            input_values=input_values,
+            batch_size=1,
+        )
         predicted = torch.stack([out[t] for t in scored], dim=1).squeeze(0)
         residuals = (predicted - target).abs()
     return {t: residuals[i].item() for i, t in enumerate(scored)}

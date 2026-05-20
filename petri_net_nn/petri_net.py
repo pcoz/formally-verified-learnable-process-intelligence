@@ -84,6 +84,16 @@ class PetriNet:
         default_factory=dict
     )
 
+    # Structural guard records (``{place, op, value}``) for the
+    # subset of guards that were declared in the simple comparison
+    # form rather than as opaque Python callables. The compiler reads
+    # this dict to build differentiable, learnable soft guards: each
+    # entry becomes an ``nn.Parameter`` threshold initialised at
+    # ``value``, refined by training. Guards declared via raw
+    # callables remain transparent to the compiler (they're stored in
+    # ``transition_guards`` and used by the coloured token-game only).
+    transition_structural_guards: dict[str, dict] = field(default_factory=dict)
+
     def add_place(self, pid: str, *, label: str | None = None, tokens: int = 0) -> None:
         self.places.add(pid)
         if label is not None:
@@ -99,6 +109,7 @@ class PetriNet:
         duration: int = 1,
         rate: float = 1.0,
         guard: GuardFn | None = None,
+        structural_guard: dict | None = None,
     ) -> None:
         """Add a transition.
 
@@ -121,8 +132,16 @@ class PetriNet:
         It receives a dict mapping each input place to the value of
         the token that would be consumed there and returns True
         when the transition is allowed to fire. Guards have no
-        effect on the count-based ``is_enabled`` / ``fire`` path
-        or on the neural compiler.
+        effect on the count-based ``is_enabled`` / ``fire`` path.
+
+        ``structural_guard`` is the matching declarative record for
+        the simple comparison-form guard — ``{"place": ..., "op":
+        ..., "value": ...}``. When present, the compiler picks it
+        up and builds a differentiable soft guard with a learnable
+        threshold parameter initialised at ``value``. The token-game
+        path keeps using ``guard`` unchanged, so the two views stay
+        in sync: the declarative record is the trainable face of the
+        same rule the callable encodes.
         """
         if duration < 1:
             raise ValueError(
@@ -143,6 +162,14 @@ class PetriNet:
             self.transition_rates[tid] = float(rate)
         if guard is not None:
             self.transition_guards[tid] = guard
+        if structural_guard is not None:
+            for key in ("place", "op", "value"):
+                if key not in structural_guard:
+                    raise ValueError(
+                        f"transition {tid!r}: structural_guard must contain "
+                        f"{key!r}; got {structural_guard}"
+                    )
+            self.transition_structural_guards[tid] = dict(structural_guard)
 
     def duration(self, transition: str) -> int:
         """The transition's firing duration in time-unrolled steps.
@@ -413,6 +440,25 @@ class PetriNet:
             if transition not in self.transitions:
                 issues.append(
                     f"guard recorded for unknown transition {transition!r}"
+                )
+
+        for transition, spec in self.transition_structural_guards.items():
+            if transition not in self.transitions:
+                issues.append(
+                    f"structural guard recorded for unknown transition "
+                    f"{transition!r}"
+                )
+                continue
+            place = spec.get("place")
+            if place not in self.places:
+                issues.append(
+                    f"structural guard on transition {transition!r} "
+                    f"references unknown place {place!r}"
+                )
+            if place not in self.preset(transition):
+                issues.append(
+                    f"structural guard on transition {transition!r} "
+                    f"reads place {place!r} which is not in its preset"
                 )
 
         for (src, dst) in self.arc_output_values:
