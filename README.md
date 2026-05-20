@@ -232,6 +232,93 @@ without bespoke glue.
 
 ---
 
+## Why this matters
+
+The walkthrough above isn't just a tidy demo. It collapses several
+pieces of work that today require **separate teams and months of
+effort** into one analytical pipeline. Three questions worth
+asking about it: *how valuable is the capability, what are
+organisations paying today to approximate it, and why is it
+genuinely hard.*
+
+### How valuable is this capability?
+
+In one pass over real logs, the chain produces four things any
+large institution would want about its own operating model:
+
+- **Evidence-backed comparison** of how two units *actually*
+  operate, not how they *think* they operate.
+- **Verified equivalence claims** — proof that a redesign hasn't
+  silently changed behaviour.
+- **Cost-ranked redesigns** fitted to real workload, not stipulated
+  by consultants.
+- **Transition-level compliance flags** that point a regulator (or
+  an audit team) at specific named traces and the specific named
+  transition each one diverged at.
+
+The strategic frame is *unlocking process change at organisational
+scale*. Most large institutions are stuck in the change-aversion
+equilibrium the [ROADMAP](docs/ROADMAP.md) describes: redesigns
+are risky, so they don't happen, so legacy variation accumulates,
+so the next redesign is even riskier. **Making refactoring safe
+is the same shift that transformed software engineering** in the
+1990s and 2000s. Applied to banks, insurers, hospitals, telcos,
+this is operating-model-level value, not tooling-level.
+
+### What do organisations pay today to approximate this?
+
+The work is currently spread across several budget lines, **none
+of which delivers the full chain**:
+
+| Spend category | Typical scale |
+|---|---|
+| **Process-mining licences** (Celonis, Signavio, UiPath Process Mining, Disco, Apromore) | £50k–£500k+/year per enterprise deployment; Celonis enterprise contracts routinely run into seven figures annually. |
+| **Business-process / management consulting** for redesign and harmonisation (McKinsey, BCG, Bain, Deloitte, Accenture) | £2k–£5k+ per consultant-day; a typical *"unify the two offices"* project runs **£500k–£5M over 6–18 months**. |
+| **Compliance and audit tooling** plus dedicated compliance headcount | Varies widely; for a regulated bank, easily **£1M+/year** on a single workflow class. |
+| **BPM platforms** (Camunda, Pega, Appian, IBM BPM) | Six- to seven-figure annual licences, plus implementation partners on top. |
+
+**Crucially, no current vendor sells the equivalence-proof +
+cost-ranked-refactoring combination** the walkthrough produces.
+Process mining tells you *what happened*; it doesn't **prove** two
+redesigns are behaviourally equivalent, and it doesn't rank them
+by cost with formal guarantees. That gap is where the consulting
+spend goes — and consultants reach a *judgement*, not a *proof*.
+
+### Why is it hard to get today?
+
+Several difficulties compound:
+
+- **Skill scarcity.** The chain needs *process mining*, *formal
+  methods* (bisimulation, model checking), *stochastic modelling*,
+  *ML*, and *domain expertise*. Almost nobody has all of these;
+  assembled teams pay an integration tax.
+- **Tool fragmentation.** ProM, CPN Tools, GreatSPN, and TINA each
+  have their own input formats, UIs, and learning curves. PNML
+  helps, but stitching the chain into a deployable workflow is
+  bespoke work each time.
+- **Equivalence proofs aren't actually being established.** Even
+  with the tools in place, the load-bearing claim — *that a
+  redesign behaves identically to the original* — is rarely proved.
+  Teams settle for *"it passes UAT"* and *"stakeholders signed
+  off,"* which is why redesigns stay risky.
+- **Months-to-years cycle time.** Process redesign at large
+  institutions is a multi-quarter project; ERP-class
+  reimplementations run multiple years. The risk is high enough
+  that change-aversion is rational — which keeps the cycle long,
+  which keeps the risk high.
+- **Outputs aren't actionable at the transition level.**
+  Process-mining heatmaps tell you *"this area is slow"* but
+  rarely give a compliance officer a list of specific named
+  traces and the specific named transition each one diverged at.
+  The walkthrough above does exactly that.
+
+**Net:** the capability is valuable, current spend on partial
+substitutes is large and fragmented, and the gap PETRA targets
+— verified equivalence and cost-ranked refactoring grounded in
+real logs — isn't actually filled by anything else on the market.
+
+---
+
 ## Worked examples
 
 PETRA ships with **13 end-to-end scenarios** under `examples/`.
