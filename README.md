@@ -317,6 +317,42 @@ substitutes is large and fragmented, and the gap PETRA targets
 — verified equivalence and cost-ranked refactoring grounded in
 real logs — isn't actually filled by anything else on the market.
 
+### What gets disrupted, and what doesn't
+
+A reasonable follow-up question — *does this vaporise the
+change-management market?* The honest answer is *yes for the
+largest slice, but with three explicit qualifiers*.
+
+**Where the framing holds.** The change-management market is
+largely sized by the *risk* of process change. Consultants get
+paid in proportion to that risk, because someone has to absorb it
+— through interviews, workshops, target-state modelling,
+shadow-running, UAT, post-go-live war rooms. If a redesign can be
+**mechanically proven to behave identically** to the original and
+**ranked by realised cost** against the actual workload, the risk
+collapses. A lot of the spend that exists to manage that risk
+loses its reason to exist. The walkthrough's four outputs replace
+expensive *judgement calls* with cheap, repeatable, auditable
+**artefacts**. That is the same shape as what happened to manual
+QA once test automation matured, or to manual deployment once
+CI/CD matured.
+
+**Where it doesn't.** Three slices of the change-management market
+survive intact:
+
+| Slice | Why it survives |
+|---|---|
+| **The people side** | Stakeholder alignment, training, communications, org redesign, incentive restructuring. PETRA proves a redesign is behaviourally equivalent — *it doesn't make people accept it or rewire who reports to whom.* |
+| **Deciding which redesigns to propose** | The substrate *verifies and ranks* candidates; it doesn't *generate* them. Until candidate-generation is automated (the [ROADMAP](docs/ROADMAP.md) flags this as missing on top of PETRA), someone still has to imagine the alternatives — that's domain consulting work. |
+| **The regulated-industry layer** | Compliance sign-off, regulator engagement, model-risk governance. A formal proof helps but doesn't replace the regulatory dance — and in some jurisdictions the regulator wants a *human* on the line. |
+
+**Net:** PETRA collapses the **risk-absorption slice** of the
+market — which is the largest and most expensive — but leaves
+the **judgement**, **change**, and **governance** slices intact.
+Roughly: the McKinsey/BCG/Bain *redesign-engagement* layer
+shrinks dramatically; the Prosci/ADKAR *change-adoption* layer
+doesn't.
+
 ---
 
 ## Worked examples
