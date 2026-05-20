@@ -44,6 +44,7 @@ extraction is a follow-up.
 """
 from __future__ import annotations
 
+import itertools
 import statistics
 from dataclasses import dataclass, field
 from typing import Callable
@@ -1599,5 +1600,385 @@ def prose_for_sensitivity(
         lines.append(
             f"  {i}. {label}{channel_note} — gradient "
             f"{grad:+.3f}; increasing it {direction} the firing."
+        )
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Phase 13 — cross-variant comparison reports.
+#
+# When two trained variants are *bisimilar* (Phase 2 / Phase 11),
+# they're guaranteed to exhibit the same observable behaviour from
+# their initial markings. But that's a structural guarantee — it
+# doesn't tell you how often the two variants' learned routing
+# *decisions* agree across a given operating range. Two bisimilar
+# nets, trained on different data, will still differ in their soft
+# activations at intermediate input values.
+#
+# Cross-variant comparison answers the practical question:
+#   "Across this input range, on what fraction of points do these
+#    two variants reach the same firing decision at each
+#    corresponding transition? Where do they disagree?"
+#
+# Algorithm: take a Cartesian-product grid over the user-supplied
+# input ranges, evaluate both modules at every grid point, and
+# tally per-transition agreement. Transitions are corresponded by
+# label by default — variants of the same process usually share
+# transition labels, only the IDs differ. An explicit
+# ``correspondence`` mapping overrides this when labels don't line
+# up.
+#
+# Two agreement notions, both reported:
+#   * "Hard" — both activations on the same side of 0.5.
+#   * "Soft" — both activations within ``tolerance`` of each other.
+#
+# This pairs naturally with the cost-ranked refactoring scenario:
+# bisimulation proves two variants are *behaviourally* equivalent;
+# cost-ranking shows which is cheaper to run; cross-variant
+# comparison shows *where in the input domain* they actually
+# overlap and where their soft routing differs.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class DisagreementSample:
+    """One grid point where the two variants disagree on at least
+    one corresponded transition.
+
+    Attributes
+    ----------
+    input_marking
+        Place activations at this sample point.
+    input_values
+        Per-token value channel at this sample point, or ``None``
+        when the comparison didn't use a value grid.
+    diverging
+        Map of label → (variant_a_activation, variant_b_activation)
+        for transitions where the two variants disagreed at this
+        point. Only diverging transitions appear here — the report
+        is a *disagreement* sample, not a full state dump.
+    """
+
+    input_marking: dict[str, float]
+    input_values: dict[str, float] | None
+    diverging: dict[str, tuple[float, float]]
+
+
+@dataclass(frozen=True)
+class ComparisonReport:
+    """Outcome of comparing two trained variants over a grid of
+    input points.
+
+    Attributes
+    ----------
+    n_samples
+        How many grid points were evaluated.
+    paired_labels
+        Transition labels that were matched between the two
+        variants. Variants of the same process usually share
+        labels; this list pins which ones the comparison actually
+        ran on. Labels present in only one variant are skipped
+        (and recorded in ``unmatched_a`` / ``unmatched_b`` for
+        diagnostic purposes).
+    unmatched_a, unmatched_b
+        Labels present in variant A / B but not in the other.
+        Useful for catching variants that differ structurally
+        before reading the agreement numbers.
+    hard_agreement_rate
+        Fraction of (sample, transition) pairs where both variants'
+        firing activations fell on the same side of 0.5 — the
+        same firing *decision*.
+    soft_agreement_rate
+        Fraction where the two activations were within
+        ``tolerance`` of each other. Stricter when tolerance is
+        small, looser when large.
+    per_transition_agreement
+        Per-label hard-agreement rate. Sorted-descending lists
+        which transitions agree most reliably; sorted-ascending
+        surfaces the ones most prone to divergence.
+    disagreement_samples
+        Specific grid points where at least one transition
+        diverged (under the hard-agreement definition). Capped at
+        ``max_disagreement_samples`` to keep the report a
+        bounded-size object.
+    tolerance
+        Echo of the soft-agreement tolerance used. Recorded so
+        the report is self-describing.
+    """
+
+    n_samples: int
+    paired_labels: tuple[str, ...]
+    unmatched_a: tuple[str, ...]
+    unmatched_b: tuple[str, ...]
+    hard_agreement_rate: float
+    soft_agreement_rate: float
+    per_transition_agreement: dict[str, float]
+    disagreement_samples: tuple[DisagreementSample, ...]
+    tolerance: float
+
+
+def _scored_label_map(module: PetriNetModule) -> dict[str, str]:
+    """Map of label → transition_id for the scoreable transitions
+    of a module. Skips auto-generated gateway labels (those that
+    contain ``->``) — the same convention used by
+    ``train_on_traces`` and the rule extractors."""
+    return {
+        module.net.transition_labels.get(t, t): t
+        for t in module.net.transitions
+        if "->" not in module.net.transition_labels.get(t, t)
+    }
+
+
+def _grid_points(
+    input_grid: dict[str, list[float]],
+) -> list[dict[str, float]]:
+    """Cartesian product over the supplied input ranges. Returns a
+    list of marking dicts, one per grid point.
+
+    Empty / missing grids return ``[{}]`` — the single empty
+    marking, meaning "no input override." The caller can layer
+    this with a value grid through the symmetric helper."""
+    if not input_grid:
+        return [{}]
+    places = sorted(input_grid)
+    value_lists = [input_grid[p] for p in places]
+    points: list[dict[str, float]] = []
+    for combo in itertools.product(*value_lists):
+        points.append(dict(zip(places, combo)))
+    return points
+
+
+def compare_variants(
+    module_a: PetriNetModule,
+    module_b: PetriNetModule,
+    *,
+    input_grid: dict[str, list[float]] | None = None,
+    input_value_grid: dict[str, list[float]] | None = None,
+    correspondence: dict[str, tuple[str, str]] | None = None,
+    tolerance: float = 0.1,
+    max_disagreement_samples: int = 50,
+) -> ComparisonReport:
+    """Compare two trained variants across a grid of input points.
+
+    For each input combination in the Cartesian product of
+    ``input_grid`` (marking channel) and ``input_value_grid``
+    (coloured-token value channel), evaluate both modules and
+    compare each pair of corresponded transitions' firing
+    activations.
+
+    Parameters
+    ----------
+    module_a, module_b
+        The two trained variants to compare. Usually two trainings
+        of structurally-bisimilar nets — see ``are_bisimilar`` /
+        ``are_weakly_bisimilar``. The function itself doesn't
+        check bisimilarity; it compares whatever you pass in.
+    input_grid
+        Place activations to vary. Keys are place ids that exist
+        in *both* modules (when in doubt, pass the same place id
+        appearing as a source in both — variants of the same
+        process share input names). Values are lists of activation
+        values to evaluate. The Cartesian product gives the
+        sample set.
+    input_value_grid
+        Optional coloured-token value channel grid. Same shape as
+        ``input_grid``. When supplied, each combined grid point
+        runs through both the marking and value channels of both
+        modules.
+    correspondence
+        Override the default label-matching. Keys are an arbitrary
+        identifier the user chooses (often the human label), values
+        are ``(transition_id_in_a, transition_id_in_b)`` pairs.
+        Use this when the two variants use different labels for
+        the same conceptual step (e.g. *"Approve loan"* vs
+        *"Loan approval"*).
+    tolerance
+        Soft-agreement tolerance: two activations are softly
+        equal when ``|a - b| <= tolerance``. Default 0.1.
+    max_disagreement_samples
+        Hard cap on the number of disagreement samples carried in
+        the report — protects against a single grid sweep
+        producing thousands of divergent points and bloating the
+        report.
+
+    Returns
+    -------
+    ComparisonReport
+        Bundled outcome: agreement rates, per-transition rates,
+        and up to ``max_disagreement_samples`` divergent grid
+        points for inspection.
+    """
+    # Build the correspondence map. The user's explicit
+    # ``correspondence`` takes precedence; whatever's left is
+    # filled in by label-matching.
+    pairs: dict[str, tuple[str, str]] = {}
+    if correspondence is not None:
+        pairs.update(correspondence)
+    a_labels = _scored_label_map(module_a)
+    b_labels = _scored_label_map(module_b)
+    for label in a_labels:
+        if label in pairs:
+            continue
+        if label in b_labels:
+            pairs[label] = (a_labels[label], b_labels[label])
+
+    unmatched_a = sorted(label for label in a_labels if label not in pairs)
+    unmatched_b = sorted(label for label in b_labels if label not in pairs)
+
+    # Build the joint grid: cross marking grid × value grid.
+    marking_points = _grid_points(input_grid or {})
+    value_points = _grid_points(input_value_grid or {})
+
+    n_samples = 0
+    n_hard_agree = 0
+    n_hard_total = 0
+    n_soft_agree = 0
+    per_transition_hits: dict[str, int] = {label: 0 for label in pairs}
+    per_transition_totals: dict[str, int] = {label: 0 for label in pairs}
+    disagreement_samples: list[DisagreementSample] = []
+
+    module_a.eval()
+    module_b.eval()
+    with torch.no_grad():
+        for marking, values in itertools.product(marking_points, value_points):
+            n_samples += 1
+            # Build the tensor inputs once per grid point and pass
+            # them to both modules.
+            marking_tensor = {
+                p: torch.tensor([v]) for p, v in marking.items()
+            }
+            values_tensor = (
+                {p: torch.tensor([v]) for p, v in values.items()}
+                if values
+                else None
+            )
+            out_a = module_a(
+                input_marking=marking_tensor,
+                input_values=values_tensor,
+                batch_size=1,
+            )
+            out_b = module_b(
+                input_marking=marking_tensor,
+                input_values=values_tensor,
+                batch_size=1,
+            )
+
+            diverging: dict[str, tuple[float, float]] = {}
+            for label, (tid_a, tid_b) in pairs.items():
+                act_a = float(out_a[tid_a].item())
+                act_b = float(out_b[tid_b].item())
+                # Hard agreement = same side of 0.5.
+                hard = (act_a >= 0.5) == (act_b >= 0.5)
+                # Soft agreement = within tolerance.
+                soft = abs(act_a - act_b) <= tolerance
+                per_transition_totals[label] += 1
+                if hard:
+                    per_transition_hits[label] += 1
+                    n_hard_agree += 1
+                else:
+                    diverging[label] = (act_a, act_b)
+                n_hard_total += 1
+                if soft:
+                    n_soft_agree += 1
+
+            if diverging and len(disagreement_samples) < max_disagreement_samples:
+                disagreement_samples.append(
+                    DisagreementSample(
+                        input_marking=dict(marking),
+                        input_values=dict(values) if values else None,
+                        diverging=diverging,
+                    )
+                )
+
+    hard_rate = n_hard_agree / n_hard_total if n_hard_total else 1.0
+    soft_rate = n_soft_agree / n_hard_total if n_hard_total else 1.0
+    per_transition = {
+        label: (
+            per_transition_hits[label] / per_transition_totals[label]
+            if per_transition_totals[label]
+            else 1.0
+        )
+        for label in pairs
+    }
+
+    return ComparisonReport(
+        n_samples=n_samples,
+        paired_labels=tuple(sorted(pairs)),
+        unmatched_a=tuple(unmatched_a),
+        unmatched_b=tuple(unmatched_b),
+        hard_agreement_rate=hard_rate,
+        soft_agreement_rate=soft_rate,
+        per_transition_agreement=per_transition,
+        disagreement_samples=tuple(disagreement_samples),
+        tolerance=tolerance,
+    )
+
+
+def prose_for_comparison_report(
+    report: ComparisonReport,
+    *,
+    top_disagreement: int = 3,
+) -> str:
+    """Render a cross-variant comparison report as a paragraph.
+
+    Reports overall hard- and soft-agreement rates, names the
+    transitions most prone to disagreement, and flags any
+    label mismatches between the two variants. Suitable for
+    inclusion in a refactoring proposal or a model-risk review.
+
+    Parameters
+    ----------
+    report
+        The :class:`ComparisonReport` to describe.
+    top_disagreement
+        How many of the most-divergent transitions to list (default
+        3). Surfaces the worst offenders without burying the reader
+        in a long table; the full per-transition breakdown is
+        always available on ``report.per_transition_agreement``.
+    """
+    lines = [
+        f"Variants compared across {report.n_samples} input "
+        f"point(s); {len(report.paired_labels)} transitions "
+        f"corresponded by label.",
+        f"Hard agreement (same firing decision): "
+        f"{report.hard_agreement_rate:.1%}.",
+        f"Soft agreement (activations within "
+        f"{report.tolerance:.2f}): {report.soft_agreement_rate:.1%}.",
+    ]
+    # Disagreement ranking: sort transitions by ascending agreement
+    # rate, so the ones most prone to diverge surface first.
+    sorted_transitions = sorted(
+        report.per_transition_agreement.items(),
+        key=lambda kv: kv[1],
+    )
+    diverging = [
+        (label, rate)
+        for label, rate in sorted_transitions
+        if rate < 1.0
+    ]
+    if diverging:
+        lines.append(
+            f"Transitions most prone to disagreement "
+            f"(top {min(top_disagreement, len(diverging))}):"
+        )
+        for label, rate in diverging[:top_disagreement]:
+            lines.append(
+                f"  • {label!r}: agree on {rate:.1%} of points."
+            )
+    else:
+        lines.append(
+            "Every paired transition agreed on every sample — the "
+            "two variants are functionally indistinguishable across "
+            "this input domain."
+        )
+    if report.unmatched_a:
+        lines.append(
+            f"Labels in variant A with no match in variant B: "
+            f"{list(report.unmatched_a)}."
+        )
+    if report.unmatched_b:
+        lines.append(
+            f"Labels in variant B with no match in variant A: "
+            f"{list(report.unmatched_b)}."
         )
     return "\n".join(lines)

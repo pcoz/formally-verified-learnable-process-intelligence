@@ -331,7 +331,8 @@ from petri_net_nn import (
     extract_and_join_rule,      # weighted-vote / quorum rule
     extract_and_join_rules,
     explain_anomaly,            # prose explanation pinned to BPMN labels
-    # Phase 13 — confidence intervals, counterfactuals, sensitivity, prose
+    # Phase 13 — confidence intervals, counterfactuals, sensitivity,
+    # cross-variant comparison, prose
     bootstrap_xor_rule,         # bootstrap CI on an XOR rule
     bootstrap_and_join_rule,    # bootstrap CI on an AND-join rule
     XORRuleCI, AndJoinRuleCI,   # CI bundles (point estimate + distribution + CI)
@@ -340,10 +341,14 @@ from petri_net_nn import (
     transition_sensitivity,     # per-input gradients at a base point
     input_importance,           # aggregate input importance over a trace set
     SensitivityReport,          # sensitivity bundle (marking + value gradients)
+    compare_variants,           # grid-comparison between two trained variants
+    ComparisonReport,           # comparison bundle (agreement + divergent samples)
+    DisagreementSample,         # one grid point where the variants disagree
     prose_for_xor_rule,         # rule (or CI) → paragraph
     prose_for_and_join_rule,    # rule (or CI) → paragraph
     prose_for_counterfactual,   # counterfactual → paragraph
     prose_for_sensitivity,      # sensitivity report → paragraph
+    prose_for_comparison_report,# comparison report → paragraph
 )
 ```
 
@@ -399,14 +404,34 @@ use torch autograd directly — gradients are local, so saturated
 regions produce smaller magnitudes (the prose helper reports the
 base activation alongside the ranking).
 
+**Cross-variant comparison.** ``compare_variants(module_a,
+module_b, *, input_grid, input_value_grid=None,
+correspondence=None, tolerance=0.1, max_disagreement_samples=50)``
+runs both modules across a Cartesian-product grid of input points,
+pairs transitions by label (with explicit ``correspondence``
+override), and reports the hard-agreement rate (same firing
+decision, both on the same side of 0.5), the soft-agreement rate
+(activations within ``tolerance``), per-transition agreement
+rates, and up to ``max_disagreement_samples`` divergent grid
+points as ``DisagreementSample`` entries. Unmatched labels are
+recorded separately so callers can spot structural mismatches
+before reading the agreement numbers. Useful as the
+data-supported counterpart to ``are_bisimilar`` /
+``are_weakly_bisimilar`` — those check *behavioural* equivalence;
+this one shows *where in the input space* two trained variants
+actually agree.
+
 **Prose helpers.** ``prose_for_xor_rule``,
-``prose_for_and_join_rule``, ``prose_for_counterfactual``, and
-``prose_for_sensitivity`` accept either the bare object or the CI
-variant where applicable. With a CI the prose includes the bracket
-numbers and agreement percentage; with a bare object it doesn't.
-An optional ``input_label`` (or ``input_labels`` mapping, for the
-sensitivity helper) substitutes domain terms for raw place ids —
-useful for regulator-facing output.
+``prose_for_and_join_rule``, ``prose_for_counterfactual``,
+``prose_for_sensitivity``, and ``prose_for_comparison_report``
+accept either the bare object or the CI variant where applicable.
+With a CI the prose includes the bracket numbers and agreement
+percentage; with a bare object it doesn't. An optional
+``input_label`` (or ``input_labels`` mapping, for the sensitivity
+helper) substitutes domain terms for raw place ids — useful for
+regulator-facing output. The comparison helper takes
+``top_disagreement`` to cap the number of worst-offender
+transitions it lists explicitly.
 
 ### 3.8 `soundness.py` — Aalst soundness + deadlock localisation
 
@@ -659,5 +684,5 @@ python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
 
-Current test count: 373 passing across the framework and the
+Current test count: 379 passing across the framework and the
 end-to-end scenarios.

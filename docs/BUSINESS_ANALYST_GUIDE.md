@@ -621,6 +621,53 @@ the diagnostic toolkit:
 | *How stable is that rule?* | **Bootstrap CIs** |
 | *What change to the input would flip this specific decision?* | **Counterfactual** |
 | *Why is this trace flagged as unusual?* | **Anomaly score + prose explanation** |
+| *Across the input domain, how often do these two variants agree?* | **Cross-variant comparison** |
+
+### Cross-variant comparison: where do two variants actually agree?
+
+Bisimulation proves two variants of a process are **behaviourally
+equivalent** — every action the one can take, the other can match
+exactly. That's the structural guarantee. The practical
+follow-up question is more granular: **across the actual input
+range a process sees in production, on what fraction of inputs do
+the two variants make the same firing decisions, and where exactly
+do they diverge?**
+
+PETRA's cross-variant comparison samples the input space (a
+Cartesian-product grid the modeller chooses), runs both trained
+variants at each grid point, pairs corresponded transitions by
+label (or by an explicit override when labels don't line up), and
+reports:
+
+- **Hard agreement rate** — what fraction of `(grid point,
+  transition)` combinations the two variants reach the *same
+  firing decision* (both above 0.5 or both below).
+- **Soft agreement rate** — what fraction have activations
+  *within tolerance* of each other (a stricter check that
+  measures *how close* the two variants' confidences are, not
+  just whether they reach the same decision).
+- **Per-transition agreement** — which transitions agree the
+  most reliably and which are the most prone to diverge. Useful
+  for narrowing down where the variants behave differently.
+- **Specific divergent samples** — the actual input points and
+  the activations at those points. Lets a reviewer inspect *why*
+  the variants disagreed in those bands.
+- **Unmatched labels** — transitions present in one variant but
+  not the other, surfaced as a flag rather than silently dropped.
+
+A typical comparison report reads:
+
+> *Variants compared across 121 input point(s); 6 transitions
+> corresponded by label. Hard agreement (same firing decision):
+> 87.3%. Soft agreement (activations within 0.10): 82.6%.
+> Transitions most prone to disagreement (top 3): 'credit-review':
+> agree on 71.4%; 'approve loan': agree on 78.5%; 'fast-track':
+> agree on 94.2%.*
+
+That kind of report sits naturally next to a bisimulation proof
+and a cost-ranking analysis in a refactoring proposal: *"the
+new variant is provably equivalent, agrees with the reference on
+87% of the observed input domain, and costs 6× less to run".*
 
 ---
 
@@ -1022,6 +1069,7 @@ A short reference for the terms used in this guide.
 | **Coloured Petri net (CPN)** | A Petri net where each token carries a value. PETRA supports a scalar form. |
 | **Cost-ranked refactoring** | Choosing between provably-equivalent process variants by realised-execution cost. |
 | **Counterfactual** | An explanation that says what specific input change would have flipped a model's decision on a specific instance. *"If the amount had been £1,024 instead of £100, the loan would have been approved."* |
+| **Cross-variant comparison** | Sampling the input space at a grid of points and tallying where two trained variants reach the same firing decision and where they diverge. Pairs naturally with bisimulation. |
 | **CTL** (Computation Tree Logic) | A temporal logic for asking questions about how a process unfolds over time: *eventually*, *always*, *on every path*, *on some path*. |
 | **Deadlock** | A reachable state with no enabled transitions and not the intended final state — the process is stuck. |
 | **Firing** | The event of a transition consuming input tokens and producing output tokens. |

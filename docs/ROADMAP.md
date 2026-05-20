@@ -810,10 +810,26 @@ need more.
   extractor and counterfactual analysis this completes the
   diagnostic toolkit: *which inputs matter → which threshold rules
   them → what change would flip the outcome*.
-- [ ] **Cross-variant comparison reports.** "These two variants
+- [x] **Cross-variant comparison reports.** "These two variants
   agree on 87% of the input domain; here's the band where they
-  diverge." Pairs naturally with the cost-ranked refactoring
-  scenario.
+  diverge." `compare_variants(module_a, module_b, *, input_grid,
+  input_value_grid=None, correspondence=None, tolerance=0.1,
+  max_disagreement_samples=50)` runs both trained modules over a
+  Cartesian-product grid of input points, pairs transitions by
+  label (with an explicit `correspondence` override available),
+  and reports the hard-agreement rate (same firing decision, both
+  on the same side of 0.5), the soft-agreement rate (activations
+  within `tolerance` of each other), per-transition agreement
+  rates, and a bounded list of specific divergent grid points
+  for inspection. Unmatched labels are recorded separately so
+  callers can catch variants that differ structurally before
+  reading the numbers. `prose_for_comparison_report(report, *,
+  top_disagreement=3)` renders the result as a paragraph naming
+  the worst-offender transitions; when there's no disagreement
+  it says so explicitly. Pairs naturally with the cost-ranked
+  refactoring scenario — bisimulation proves two variants are
+  *behaviourally* equivalent, comparison reports show *where in
+  the input domain* their soft routing actually overlaps.
 - [x] **Prose explanations.** `prose_for_xor_rule(rule)` and
   `prose_for_and_join_rule(rule)` turn the structured rule objects
   into paragraph form. Both accept either the bare rule

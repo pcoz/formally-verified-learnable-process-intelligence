@@ -9,7 +9,9 @@ import torch
 
 from petri_net_nn import (
     AndJoinRuleCI,
+    ComparisonReport,
     Counterfactual,
+    DisagreementSample,
     PetriNet,
     PetriNetModule,
     SensitivityReport,
@@ -18,6 +20,7 @@ from petri_net_nn import (
     XORRuleCI,
     bootstrap_and_join_rule,
     bootstrap_xor_rule,
+    compare_variants,
     explain_anomaly,
     extract_and_join_rule,
     extract_and_join_rules,
@@ -33,6 +36,7 @@ from petri_net_nn import (
     parse_bpmn,
     parse_xes,
     prose_for_and_join_rule,
+    prose_for_comparison_report,
     prose_for_counterfactual,
     prose_for_sensitivity,
     prose_for_xor_rule,
@@ -977,3 +981,197 @@ def test_prose_for_sensitivity_handles_empty_report():
     text = prose_for_sensitivity(report)
     assert "isolated step" in text
     assert "No measurable sensitivity" in text or "no measurable sensitivity" in text.lower()
+
+
+# ---------------------------------------------------------------------------
+# Phase 13 — cross-variant comparison reports.
+#
+# A bisimulation check tells you two variants are *structurally*
+# equivalent. Cross-variant comparison tells you how often, across
+# a chosen input domain, their trained routing decisions actually
+# overlap. The two tests below pin the two headline cases:
+#   * identical-fixture variants should agree on essentially every
+#     point;
+#   * intentionally mistuned variants (different routing thresholds)
+#     should agree at the extremes but diverge in the middle band.
+# ---------------------------------------------------------------------------
+
+
+def _hand_xor_module(*, theta_a: float = 0.5, theta_b: float = 0.5):
+    """Build a 2-transition XOR-shape net with hand-set firing
+    thresholds so we can construct variants with controlled
+    (mis)tuning without going through training. Both transitions
+    share input ``p_in`` and branch to ``p_a`` / ``p_b``; arc
+    weights are 1, sharpness is 8, so each transition fires
+    cleanly above its own ``theta``."""
+    net = PetriNet()
+    net.add_place("p_in")
+    net.add_place("p_a")
+    net.add_place("p_b")
+    net.add_transition("t_a", label="Path A")
+    net.add_transition("t_b", label="Path B")
+    net.add_arc("p_in", "t_a")
+    net.add_arc("t_a", "p_a")
+    net.add_arc("p_in", "t_b")
+    net.add_arc("t_b", "p_b")
+    module = PetriNetModule(net, sharpness=8.0)
+    # Override the arc weights to exactly 1.0 (the default init
+    # is normal(mean=1, std=0.1) — close to 1 but not exact, and
+    # the noise is enough to perturb the cross-variant agreement
+    # tests).
+    module.arc_weights[module._arc_key[("p_in", "t_a")]].data = torch.tensor(1.0)
+    module.arc_weights[module._arc_key[("p_in", "t_b")]].data = torch.tensor(1.0)
+    # Set thresholds. t_a fires above theta_a (because pre =
+    # 8 * (1 * a - theta_a), so the sigmoid crosses 0.5 at
+    # a = theta_a).
+    module.transition_thresholds[module._threshold_key["t_a"]].data = torch.tensor(theta_a)
+    module.transition_thresholds[module._threshold_key["t_b"]].data = torch.tensor(theta_b)
+    return module
+
+
+def test_compare_variants_on_identical_modules_reports_full_agreement():
+    """Two identical-threshold modules should agree on every grid
+    point. Hard agreement rate = 1.0, no disagreement samples."""
+    a = _hand_xor_module(theta_a=0.5, theta_b=0.5)
+    b = _hand_xor_module(theta_a=0.5, theta_b=0.5)
+    report = compare_variants(
+        a, b,
+        input_grid={"p_in": [0.0, 0.25, 0.5, 0.75, 1.0]},
+    )
+    assert isinstance(report, ComparisonReport)
+    assert report.n_samples == 5
+    assert report.hard_agreement_rate == 1.0
+    assert len(report.disagreement_samples) == 0
+    # Both Path A and Path B should be in the paired labels.
+    assert set(report.paired_labels) == {"Path A", "Path B"}
+
+
+def test_compare_variants_on_mistuned_modules_finds_disagreement():
+    """Two variants with different firing thresholds should
+    disagree in the input band where one fires Path A and the
+    other doesn't. Variant A's Path A fires above 0.3; Variant
+    B's Path A fires above 0.7. At inputs between 0.3 and 0.7,
+    they disagree."""
+    a = _hand_xor_module(theta_a=0.3, theta_b=0.5)
+    b = _hand_xor_module(theta_a=0.7, theta_b=0.5)
+    report = compare_variants(
+        a, b,
+        input_grid={"p_in": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]},
+        tolerance=0.05,
+    )
+    # The hard agreement rate should be strictly less than 1.0 —
+    # there's a band where Path A fires for variant A but not B.
+    assert report.hard_agreement_rate < 1.0
+    # The soft agreement rate (tolerance = 0.05) should also be
+    # below 1.0 — the activations should differ noticeably in
+    # the disagreement band.
+    assert report.soft_agreement_rate < 1.0
+    # At least one disagreement sample should be reported.
+    assert len(report.disagreement_samples) > 0
+    # The diverging label should be one of Path A or Path B (or
+    # both at the boundary).
+    diverging_labels = set()
+    for sample in report.disagreement_samples:
+        diverging_labels.update(sample.diverging.keys())
+    assert diverging_labels & {"Path A", "Path B"}
+
+
+def test_compare_variants_unmatched_labels_are_recorded():
+    """When a label exists in one variant but not the other, it
+    should appear in ``unmatched_a`` / ``unmatched_b`` and *not*
+    be in ``paired_labels``."""
+    a = _hand_xor_module(theta_a=0.5, theta_b=0.5)
+    # Build a different net with an extra labelled transition that
+    # doesn't appear in a.
+    b = PetriNet()
+    b.add_place("p_in")
+    b.add_place("p_a")
+    b.add_place("p_c")  # extra branch
+    b.add_transition("t_a", label="Path A")
+    b.add_transition("t_c", label="Path C")  # only in b
+    b.add_arc("p_in", "t_a")
+    b.add_arc("t_a", "p_a")
+    b.add_arc("p_in", "t_c")
+    b.add_arc("t_c", "p_c")
+    b_module = PetriNetModule(b, sharpness=4.0)
+    report = compare_variants(
+        a, b_module,
+        input_grid={"p_in": [0.5]},
+    )
+    # Path A is in both → paired.
+    assert "Path A" in report.paired_labels
+    # Path B is only in a → unmatched_a.
+    assert "Path B" in report.unmatched_a
+    # Path C is only in b → unmatched_b.
+    assert "Path C" in report.unmatched_b
+
+
+def test_compare_variants_correspondence_override_pairs_unlabelled():
+    """When the two variants use different labels for the same
+    conceptual step, the ``correspondence`` override lets the
+    caller pair them by hand."""
+    a = PetriNet()
+    a.add_place("p_in")
+    a.add_place("p_done")
+    a.add_transition("t_a_internal", label="Approve loan")
+    a.add_arc("p_in", "t_a_internal")
+    a.add_arc("t_a_internal", "p_done")
+    a_module = PetriNetModule(a)
+
+    b = PetriNet()
+    b.add_place("p_in")
+    b.add_place("p_done")
+    b.add_transition("t_b_internal", label="Loan approval")  # different label
+    b.add_arc("p_in", "t_b_internal")
+    b.add_arc("t_b_internal", "p_done")
+    b_module = PetriNetModule(b)
+
+    report = compare_variants(
+        a_module, b_module,
+        input_grid={"p_in": [0.5]},
+        correspondence={
+            "approve_step": ("t_a_internal", "t_b_internal"),
+        },
+    )
+    # The user-supplied label appears in paired_labels.
+    assert "approve_step" in report.paired_labels
+    # And the per-transition agreement dict has it.
+    assert "approve_step" in report.per_transition_agreement
+
+
+def test_prose_for_comparison_report_reports_agreement_numbers():
+    """The prose summary should mention the sample count, hard
+    agreement rate, soft agreement rate, and the worst-offender
+    transitions when disagreements exist."""
+    a = _hand_xor_module(theta_a=0.3, theta_b=0.5)
+    b = _hand_xor_module(theta_a=0.7, theta_b=0.5)
+    report = compare_variants(
+        a, b,
+        input_grid={"p_in": [0.0, 0.25, 0.5, 0.75, 1.0]},
+    )
+    text = prose_for_comparison_report(report)
+    # Mentions sample count.
+    assert "5" in text
+    # Mentions a percentage (hard agreement rate)
+    assert "%" in text
+    # Mentions at least one paired label (since there's
+    # disagreement, at least one of Path A / Path B should be in
+    # the "most prone" list).
+    assert "Path A" in text or "Path B" in text
+
+
+def test_prose_for_comparison_report_when_no_disagreement():
+    """When every paired transition agrees on every sample, the
+    prose should say so explicitly rather than producing an empty
+    disagreement list."""
+    a = _hand_xor_module(theta_a=0.5, theta_b=0.5)
+    b = _hand_xor_module(theta_a=0.5, theta_b=0.5)
+    report = compare_variants(
+        a, b,
+        input_grid={"p_in": [0.0, 0.5, 1.0]},
+    )
+    text = prose_for_comparison_report(report)
+    assert (
+        "functionally indistinguishable" in text
+        or "Every paired transition agreed" in text
+    )
