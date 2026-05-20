@@ -1041,9 +1041,20 @@ repeatable, audit-trail-friendly).
 ## 20. The ecosystem: where your data and models come from
 
 PETRA's job is to **train, distil, score, and verify**. It is
-deliberately **not** a structure-discovery tool, a modelling GUI,
-or a workflow runtime. Other tools do those jobs well. PETRA
-plugs into them through standard formats:
+deliberately **not** a modelling GUI or a workflow runtime —
+those jobs belong to other tools. Other tools do them well.
+
+(A small qualification on *discovery* — turning a raw log into
+a Petri net structure: PETRA does have built-in discovery via
+its Inductive-Miner module, and for a clean log it is enough
+on its own. For very noisy logs, classical process-mining
+tools like ProM remain a sensible pre-filtering step; PETRA
+will happily read their PNML output. See
+*[Don't have a Petri net yet?](https://github.com/pcoz/formally-verified-learnable-process-intelligence#dont-have-a-petri-net-yet-native-discovery-from-logs)*
+in the README for the honest framing.)
+
+PETRA plugs into the wider ecosystem through standard
+formats:
 
 | Format | Where it comes from | What PETRA does with it |
 |---|---|---|
@@ -1070,7 +1081,7 @@ unify them.
 
 | Stage | Tool | What it produces |
 |---|---|---|
-| **1. Discover** | ProM (process-mining tool, classical) | A Petri net inferred from each office's log. *You now have a structural model where before there was none.* |
+| **1. Discover** | PETRA's Inductive Miner (`discover_inductive`) — or ProM for very noisy logs | A Petri net inferred from each office's log. *You now have a structural model where before there was none.* |
 | **2. Verify soundness** | CPN Tools | Proof that each discovered net is sound — terminates properly, doesn't deadlock, doesn't leak tokens. *The discovered models are well-formed Petri nets.* |
 | **3. Throughput bounds** | GreatSPN | Closed-form maximum throughput for each office under stochastic firing assumptions. *Office A can handle 250/day, Office B 180/day.* |
 | **4. Temporal invariants** | TINA | Model-checking proofs that regulatory invariants (*"every approved loan fires the audit-log transition"*) hold. *Office A passes; Office B violates the audit invariant on some paths.* |

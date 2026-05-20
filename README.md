@@ -40,9 +40,12 @@ The same primitives cover distributed-system protocols,
 manufacturing lines, laboratory recipes, multi-agent coordination,
 IT incident management, and biology signalling pathways.
 
-You give PETRA a **Petri net** describing the system's structure
-and an execution log. A Petri net is the standard formal model
-for this class of system:
+You give PETRA a **Petri net** describing the system's
+structure plus an execution log — or, if you don't have a
+Petri net yet, just the log; PETRA can
+[discover one for you](#dont-have-a-petri-net-yet-native-discovery-from-logs)
+from the trace data. A Petri net is the standard formal
+model for this class of system:
 
 - ***places*** hold tokens (work items, requests, messages);
 - ***transitions*** move tokens between places (a step firing);
@@ -156,6 +159,58 @@ four over a single trained model:
 PETRA's shape fits problems with **explicit place/transition
 structure**. Arbitrary sequence modelling (free-text,
 unrestricted time-series) fits something else.
+
+---
+
+## Don't have a Petri net yet? Native discovery from logs
+
+If you have execution logs but no structural model, PETRA
+discovers one — **one library call**:
+
+```python
+from petri_net_nn import discover_and_train, parse_xes
+
+traces = parse_xes("history.xes")
+net, module, losses = discover_and_train(
+    traces,
+    attribute_to_marking=lambda t: {},
+)
+```
+
+`net` is a Petri net **sound by construction**; `module` is
+trained against the same log. Every capability above —
+rule extraction, anomaly scoring, counterfactuals, sensitivity,
+bisimulation, CTL, cost ranking — applies unchanged.
+
+**Honest framing.** *PETRA discovers structure from
+clean-to-moderately-noisy logs, and uniquely couples that
+discovery with a trainable, formally-verifiable, interpretable
+model of the same process. For very noisy logs, pre-filter
+with [ProM](https://www.promtools.org/) and feed the PNML to
+PETRA — the rest of the pipeline applies unchanged.*
+
+| Where PETRA's native discovery works well | Where ProM-then-PETRA is the better path |
+|---|---|
+| Logs from BPM engines (Camunda / Activiti / Flowable history exports) | Highly variable real-world logs with noise |
+| Synthetic or instrumented logs | Logs with concept drift over time |
+| Well-defined activity vocabularies | Logs where body-only loops dominate (e.g. `(a, b, a, b)` patterns) |
+
+The miner is the basic [Inductive Miner](https://doi.org/10.1007/978-3-642-38697-8_17)
+(Leemans, Fahland, van der Aalst, 2013) — it covers the four
+canonical structural patterns (*sequence*, *exclusive choice*,
+*parallel*, *loop with redo*). Noise-tolerant variants (IMf,
+IMi) live in ProM today; PETRA reads ProM's PNML output
+directly via `parse_pnml`, so the bridge is a one-liner.
+
+PETRA's unique contribution is what happens *after* the
+structure is in hand — training, verification, rule
+extraction, anomaly detection, counterfactual explanation,
+cost-ranked refactoring — none of which the discovery tools
+do. **PETRA and ProM are complementary, not alternatives.**
+For a clean log, PETRA's native discovery is enough on its
+own. For a noisy log, you run ProM's noise-filtering miners
+first, then hand the resulting PNML to PETRA — same pipeline,
+either way.
 
 ---
 
