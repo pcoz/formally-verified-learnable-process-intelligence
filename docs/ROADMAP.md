@@ -739,18 +739,48 @@ before it can do anything. This is a serious barrier — most users
 have logs but not models. Process-mining has solved structure
 discovery from logs; PETRA should plug into that.
 
-- [ ] **Alpha-miner integration.** The classic algorithm that
-  produces a Petri net from an event log. Feeds straight into
-  PETRA's compiler.
-- [ ] **Inductive miner integration.** The modern alternative.
-  Crucially, it produces guaranteed-sound nets — a natural pairing
-  with PETRA's substrate.
-- [ ] **Heuristic miner integration.** For real-world logs that
-  don't follow textbook patterns and have noise.
-- [ ] **Discover → verify → train, in one call.** A single entry
-  point that takes a log and walks the whole pipeline: mine the
-  structure, verify it's sound, compile it, train on the same log.
-  This is the biggest single change in *who can use PETRA*.
+- [x] **Inductive miner.** `petri_net_nn.discovery.discover_inductive(
+  traces)` mines a process tree from an event log (any list of
+  XESTrace or raw activity-name tuples) and translates the tree
+  into a Petri net using the standard block-structured
+  construction. Four cut shapes detected, applied in priority
+  order: exclusive choice (connected components of the
+  undirected DFG), sequence (level-based antichain decomposition
+  of the SCC DAG with explicit "every-Σᵢ-reaches-every-Σⱼ"
+  validation), parallel (non-parallel-graph components with
+  start/end coverage on each), loop (minimal body =
+  start_activities ∪ end_activities, redo components in the
+  remaining activities, validated against the body↔redo edge
+  constraints). Base cases: empty log → τ; single-activity log
+  → leaf (wrapped in `Loop(activity, τ)` if the activity repeats
+  within any trace). Pathological logs that fit none of the
+  cuts fall through to a flower model. **Output is sound by
+  construction**; verified by the test suite asserting
+  `check_soundness(net).is_sound` on every mined net plus a
+  replay-invariant BFS that confirms every input trace is
+  replayable on the resulting net modulo τ collapse. This
+  closes the spec's biggest "who can use PETRA" gap — log-only
+  users no longer need ProM + PNML; everything is one library
+  call.
+
+- [x] **Discover → verify → train, in one call.**
+  `discover_and_train(traces, *, attribute_to_marking, …)`
+  chains `discover_inductive` → `check_soundness` (sanity, since
+  IM is sound by construction) → `PetriNetModule` compile →
+  `train_on_traces`. Returns `(net, module, losses)`. Single
+  entry point for users who have only a log.
+
+- [ ] **Alpha miner.** Classical 2004-era algorithm; covered in
+  spirit by the inductive miner above, which is its modern
+  successor. Skipped deliberately — alpha-miner has known
+  limitations (no short-loop handling, fragile on noisy data)
+  and inductive miner is the recommended replacement.
+
+- [ ] **Heuristic miner.** Frequency-based, noise-tolerant. The
+  IM variants IMf (infrequent-noise filtering) and IMi
+  (incremental) would extend this naturally; deferred to a
+  follow-up when noisy real-world logs from a specific user
+  motivate the work.
 
 ## Phase 13 — Better explanations *(later)*
 

@@ -309,24 +309,47 @@ without editing the TOML.
 
 ## Discovery — when you don't have a BPMN model yet
 
-PETRA's first delivery requires the user to bring a Petri net.
 If your engine has the audit log but no clean BPMN diagram
-(many real deployments are in this situation), the recommended
-path is:
+(many real deployments are in this situation), the **native**
+discovery path is one library call:
 
-1. Use a process-mining tool — **ProM** is the standard open
-   one — to discover a Petri net from the audit log.
-2. Export the discovered net as **PNML** (ProM's standard
-   export format).
+```python
+from petri_net_nn import discover_and_train, parse_xes
+
+traces = parse_xes("history.xes")            # or parse_csv / parse_json
+net, module, losses = discover_and_train(
+    traces,
+    attribute_to_marking=lambda t: {},        # if no input variables drive routing
+    steps=1000,
+)
+```
+
+`discover_inductive(traces)` runs the basic Inductive Miner
+(Leemans, Fahland, van der Aalst, 2013) — it builds the
+directly-follows graph, finds structural cuts (exclusive,
+sequence, parallel, loop), and emits a Petri net that's
+**sound by construction**. `discover_and_train` chains
+discovery → soundness verification → compile → train in one
+call.
+
+The basic-IM limitations carry through: noisy logs may
+collapse into a flower-model fallback, and some loop
+topologies aren't structurally detectable. For pathological
+real-world logs, the ProM bridge below is still a sensible
+alternative — ProM's Inductive Miner variants (IMf, IMi) and
+Heuristic Miner are more noise-tolerant than the basic IM
+PETRA ships.
+
+#### Alternative: ProM → PNML
+
+1. Use **ProM** to discover a Petri net from the audit log.
+2. Export the discovered net as **PNML**.
 3. Point PETRA at the PNML file: `[net] source = "pnml_file"`
    in the scenario TOML.
 4. Train normally with `petra-train`.
 
-Native structure-discovery is the open
-[Phase 12](https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/docs/ROADMAP.md)
-in the PETRA roadmap (Alpha / Inductive / Heuristic miners
-ported into PETRA so the discover step is a single library call).
-Until that lands, ProM-then-PNML is the cleanest bridge.
+PETRA reads PNML via `parse_pnml`; the same downstream pipeline
+applies whichever discovery tool you use.
 
 ---
 

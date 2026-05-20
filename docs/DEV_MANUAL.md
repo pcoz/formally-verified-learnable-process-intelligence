@@ -608,7 +608,50 @@ most real event sources have.
 Single-threaded by design. A multi-threaded source should
 serialise calls through a single consumer goroutine / queue.
 
-### 3.13 `cli.py` — command-line entry points for engine integration
+### 3.13 `discovery.py` — Inductive Miner for log → Petri-net discovery
+
+```python
+from petri_net_nn import discover_inductive, discover_and_train
+
+# Just discovery — log in, sound Petri net out.
+net = discover_inductive(xes_traces)
+
+# End-to-end pipeline — discover, soundness-check, compile,
+# train, in one call.
+net, module, losses = discover_and_train(
+    xes_traces,
+    attribute_to_marking=ctx.attribute_to_marking,
+    steps=1000,
+    lr=0.1,
+)
+```
+
+Basic Inductive Miner (Leemans, Fahland, van der Aalst, 2013).
+Builds the directly-follows graph of the log, recursively tries
+four cut shapes in priority order — *exclusive choice*,
+*sequence* (level-based antichain decomposition of the SCC
+DAG), *parallel*, *loop* (minimal body = start∪end activities,
+remaining activities partitioned into redo components) — and
+emits a process tree that the translator turns into a Petri
+net.
+
+**Output is sound by construction**: every mined net passes
+`check_soundness`. The test suite verifies this on each
+canonical cut shape plus a replay-invariant BFS that confirms
+every input trace replays on the mined net modulo τ collapse.
+
+**Limitations carried forward** (basic IM, not IMf / IMi):
+
+* Noisy logs may collapse into the flower-model fallback.
+* Some loop topologies (e.g. body-only loops like `(a,b,a,b)`)
+  fall through to the flower; the τ-cut handling that would
+  fix them is a Phase 12 follow-up.
+* Timestamps and event attributes are deliberately ignored
+  during discovery — only activity sequences. The training
+  step that follows reads attributes via the standard
+  `train_on_traces` path.
+
+### 3.14 `cli.py` — command-line entry points for engine integration
 
 `pip install petra-nn` drops three commands on the user's PATH
 (plus a `petra` umbrella that exposes them as subcommands):
@@ -663,7 +706,7 @@ A trained-model bundle is two files written side-by-side by
   markings without needing the original `scenario.toml` at
   score time.
 
-### 3.14 `rest.py` — HTTP wrapper around a trained module
+### 3.15 `rest.py` — HTTP wrapper around a trained module
 
 ```python
 from petri_net_nn import load_scenario, build_app
@@ -701,7 +744,7 @@ fastapi / pydantic imports are guarded at module load and
 deps. Single-model-per-app by design; auth / CORS / rate
 limiting are left to the caller's app layer.
 
-### 3.15 `onnx_export.py` — export to the ONNX interchange format
+### 3.16 `onnx_export.py` — export to the ONNX interchange format
 
 ```python
 from petri_net_nn import export_onnx
@@ -871,5 +914,5 @@ python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
 
-Current test count: 416 passing across the framework and the
+Current test count: 435 passing across the framework and the
 end-to-end scenarios.

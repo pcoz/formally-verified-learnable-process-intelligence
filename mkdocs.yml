@@ -79,6 +79,7 @@ nav:
       - CTL temporal-logic checker: api/ctl.md
       - Interpretability (rules, CIs, counterfactuals, sensitivity): api/interpretability.md
       - Reference subnets: api/subnets.md
+      - Process discovery (Inductive Miner): api/discovery.md
       - ONNX export: api/onnx_export.md
       - Streaming evaluator: api/streaming.md
       - REST API: api/rest.md
