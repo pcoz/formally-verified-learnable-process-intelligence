@@ -1,5 +1,12 @@
 # PETRA
 
+> **Not a developer?** Start with the
+> [**Business Analyst Guide**](docs/BUSINESS_ANALYST_GUIDE.md) —
+> a no-code, no-maths walkthrough of every concept in this
+> framework (Petri nets, BPMN translation, coloured tokens,
+> bisimulation, training, rule extraction, the lot) aimed at
+> process analysts, compliance officers, and project managers.
+
 **PETRA** (*Petri-Net Trained Architecture*) learns how a
 **discrete-event system** actually behaves from its **execution
 logs**, and turns the learned behaviour into four things you can
