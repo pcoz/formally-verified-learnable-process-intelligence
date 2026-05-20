@@ -331,15 +331,19 @@ from petri_net_nn import (
     extract_and_join_rule,      # weighted-vote / quorum rule
     extract_and_join_rules,
     explain_anomaly,            # prose explanation pinned to BPMN labels
-    # Phase 13 — confidence intervals, counterfactuals, and prose
+    # Phase 13 — confidence intervals, counterfactuals, sensitivity, prose
     bootstrap_xor_rule,         # bootstrap CI on an XOR rule
     bootstrap_and_join_rule,    # bootstrap CI on an AND-join rule
     XORRuleCI, AndJoinRuleCI,   # CI bundles (point estimate + distribution + CI)
     find_counterfactual,        # binary-search counterfactual analysis
     Counterfactual,             # the counterfactual bundle
+    transition_sensitivity,     # per-input gradients at a base point
+    input_importance,           # aggregate input importance over a trace set
+    SensitivityReport,          # sensitivity bundle (marking + value gradients)
     prose_for_xor_rule,         # rule (or CI) → paragraph
     prose_for_and_join_rule,    # rule (or CI) → paragraph
     prose_for_counterfactual,   # counterfactual → paragraph
+    prose_for_sensitivity,      # sensitivity report → paragraph
 )
 ```
 
@@ -381,12 +385,27 @@ tolerance) and ``interval_tolerance`` (search-width tolerance, auto-
 defaults to 1e-4 of the search range) let it converge cleanly on
 both [0, 1] marking ranges and [0, 10000] value ranges.
 
+**Sensitivity analysis.** ``transition_sensitivity(module,
+base_marking, target_transition, *, base_values=None)`` returns a
+``SensitivityReport`` with per-input gradient magnitudes of the
+target's firing activation at the base point. Both channels are
+reported separately (marking and value), so a CPN scenario can
+see which channel drives the decision. ``input_importance(
+module, traces, *, attribute_to_marking, transitions=None,
+attribute_to_values=None)`` aggregates absolute gradients across
+a trace set and all scored transitions, returning per-input
+importance scores keyed by ``"<channel>:<place>"``. Both functions
+use torch autograd directly — gradients are local, so saturated
+regions produce smaller magnitudes (the prose helper reports the
+base activation alongside the ranking).
+
 **Prose helpers.** ``prose_for_xor_rule``,
-``prose_for_and_join_rule``, and ``prose_for_counterfactual``
-accept either the bare object or the CI variant where applicable.
-With a CI the prose includes the bracket numbers and agreement
-percentage; with a bare object it doesn't. An optional
-``input_label`` substitutes a domain term for the raw place id —
+``prose_for_and_join_rule``, ``prose_for_counterfactual``, and
+``prose_for_sensitivity`` accept either the bare object or the CI
+variant where applicable. With a CI the prose includes the bracket
+numbers and agreement percentage; with a bare object it doesn't.
+An optional ``input_label`` (or ``input_labels`` mapping, for the
+sensitivity helper) substitutes domain terms for raw place ids —
 useful for regulator-facing output.
 
 ### 3.8 `soundness.py` — Aalst soundness + deadlock localisation
@@ -640,5 +659,5 @@ python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
 
-Current test count: 365 passing across the framework and the
+Current test count: 373 passing across the framework and the
 end-to-end scenarios.

@@ -576,6 +576,52 @@ Three audiences use this directly:
   model-risk regimes (e.g. SR 11-7 in the US, PRA SS1/23 in the
   UK) require.
 
+### Sensitivity: which input matters most?
+
+Counterfactuals tell you what change to *one specific input*
+would have flipped *one specific decision*. The natural prior
+question is: **which input should I be looking at in the first
+place?**
+
+PETRA's **sensitivity analysis** computes the local rate of
+change of a target step's firing activation with respect to each
+input. Larger magnitude = the firing decision pivots more on
+that input at this base point. Two scopes:
+
+| Scope | Question it answers |
+|---|---|
+| **Local sensitivity at a single instance** | *For this specific loan application, which inputs is the model leaning on?* |
+| **Aggregate input importance across a trace set** | *Across the whole population of cases we've trained on, which inputs is the model leaning on most overall?* |
+
+A typical sensitivity output for a single instance reads:
+
+> *At the base point, the firing of* approve loan *(activation
+> 0.50) is most sensitive to:*
+>
+> *1.* application amount *(per-token value) — gradient +0.180;
+> increasing it raises the firing.*
+> *2.* applicant credit score *— gradient +0.045; increasing it
+> raises the firing.*
+> *3.* prior defaults *— gradient −0.012; increasing it lowers
+> the firing.*
+
+The numbers are *local gradients*: they tell you how much the
+firing decision changes for a small change in each input. Inputs
+with near-zero gradient are locally irrelevant — either the
+model genuinely doesn't use them, or the case is in a saturated
+regime far from the decision boundary.
+
+Together with rules, CIs, and counterfactuals, this completes
+the diagnostic toolkit:
+
+| Question | Tool |
+|---|---|
+| *Which inputs does the model lean on?* | **Sensitivity** |
+| *What's the rule it applies to that input?* | **Rule extraction** |
+| *How stable is that rule?* | **Bootstrap CIs** |
+| *What change to the input would flip this specific decision?* | **Counterfactual** |
+| *Why is this trace flagged as unusual?* | **Anomaly score + prose explanation** |
+
 ---
 
 ## 14. Spotting traces that don't fit
@@ -991,6 +1037,7 @@ A short reference for the terms used in this guide.
 | **Reachability graph** | The graph of all markings the net can reach from its initial marking, with transitions as edges. |
 | **SIF** | Simple Interaction Format — the tab-separated format Pathway Commons uses for biology pathways. |
 | **Silent transition** (also τ) | A transition treated as invisible by the weak-bisimulation checker. Used for logging, no-op gates, internal handoffs. |
+| **Sensitivity** | A measure of how much a model's decision changes when one input is nudged. Larger sensitivity = the model leans on that input more. |
 | **Soundness** | Aalst's structural property of a workflow net: every reachable state can complete, completion leaves no lingering tokens, no transition is dead. |
 | **Strong bisimulation** | Two nets are strongly bisimilar if every transition each can take is matched exactly (label-for-label) by a transition the other can take. |
 | **Temporal property** | A claim about how a process unfolds over time, rather than about a single state — *eventually X*, *always Y*, *X until Y*. Checked using CTL. |

@@ -1303,3 +1303,301 @@ def prose_for_counterfactual(
         f"changes from {cf.original_activation:.3f} to "
         f"{cf.counterfactual_activation:.3f})."
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 13 — sensitivity analysis.
+#
+# Sensitivity answers "which input is the model leaning on hardest?"
+# at the level of named places. Two scopes:
+#
+#   * Local sensitivity at one base point — partial derivatives of a
+#     target transition's firing activation with respect to each
+#     input. Large magnitude = the firing decision pivots on that
+#     input locally; near-zero magnitude = irrelevant at this point.
+#     Useful for "which input should I look at before reaching for a
+#     counterfactual?"
+#
+#   * Aggregate input importance across a trace set — sum the
+#     absolute gradients across many traces and many scored
+#     transitions, then normalise. Tells you which inputs the
+#     trained network leans on for its overall decision-making, not
+#     just at a single instance.
+#
+# Both rely on torch autograd. We set ``requires_grad=True`` on the
+# input tensors, run a forward pass, call ``.backward()`` on the
+# target activation, and read the gradients off the inputs.
+#
+# Caveat: gradients are *local* properties of the trained function.
+# At saturation (activations very near 0 or 1), the sigmoid's gradient
+# is small even for the "right" input — the model has already
+# decided. For meaningful sensitivity readings, evaluate near a
+# decision boundary, not deep in a saturated regime.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class SensitivityReport:
+    """Local sensitivity of one transition's firing activation to
+    each input at a given base point.
+
+    Attributes
+    ----------
+    target_transition
+        The transition whose firing we measured.
+    target_label
+        Human label for ``target_transition``.
+    base_activation
+        Firing activation of ``target_transition`` at the base
+        inputs — useful for sanity-checking that we're near a
+        decision boundary (gradients far from 0.5 are less
+        informative).
+    marking_gradients
+        Per-place gradient of the target's activation with respect
+        to the marking channel at that place. Larger magnitude
+        means the firing decision pivots more on this input.
+    value_gradients
+        Per-place gradient on the coloured-token value channel.
+        Empty when ``base_values`` wasn't supplied.
+    """
+
+    target_transition: str
+    target_label: str
+    base_activation: float
+    marking_gradients: dict[str, float] = field(default_factory=dict)
+    value_gradients: dict[str, float] = field(default_factory=dict)
+
+    def ranked(self, *, top_n: int | None = None) -> list[tuple[str, str, float]]:
+        """Inputs sorted by descending absolute gradient. Each entry
+        is ``(place, channel, gradient)`` where ``channel`` is
+        ``"marking"`` or ``"value"`` — so a place can appear twice
+        if it's driven through both channels (rare). When
+        ``top_n`` is given, returns only the top N."""
+        entries: list[tuple[str, str, float]] = []
+        for place, grad in self.marking_gradients.items():
+            entries.append((place, "marking", grad))
+        for place, grad in self.value_gradients.items():
+            entries.append((place, "value", grad))
+        entries.sort(key=lambda e: abs(e[2]), reverse=True)
+        return entries[:top_n] if top_n is not None else entries
+
+
+def transition_sensitivity(
+    module: PetriNetModule,
+    base_marking: dict[str, float],
+    target_transition: str,
+    *,
+    base_values: dict[str, float] | None = None,
+) -> SensitivityReport:
+    """Compute per-input gradient magnitudes of
+    ``target_transition``'s firing activation at the base point.
+
+    The gradient of the activation with respect to each input
+    captures the local sensitivity — how much the firing decision
+    changes when we nudge that input. Larger gradient magnitude
+    means the model is leaning more on that input *at this base
+    point*. Inputs with near-zero gradient are locally irrelevant
+    (either the model genuinely doesn't use them, or we're in a
+    saturated regime far from any decision boundary).
+
+    Parameters
+    ----------
+    module
+        The trained module whose sensitivities to compute.
+    base_marking
+        Input marking at which to evaluate gradients. Typically
+        the original case in a counterfactual investigation, or
+        a representative instance from the training distribution.
+    target_transition
+        The transition whose firing is being explained.
+    base_values
+        Optional coloured-token value channel. When supplied, the
+        report also contains value-channel gradients — useful for
+        CPN scenarios where the routing decision pivots on the
+        per-token value rather than the place activation.
+    """
+    marking_tensors = {
+        p: torch.tensor([float(v)], requires_grad=True)
+        for p, v in base_marking.items()
+    }
+    values_tensors: dict[str, torch.Tensor] | None = None
+    if base_values is not None:
+        values_tensors = {
+            p: torch.tensor([float(v)], requires_grad=True)
+            for p, v in base_values.items()
+        }
+
+    # Forward pass — we *don't* wrap in torch.no_grad here because
+    # we need the autograd graph. ``module.eval()`` disables any
+    # training-time stochastic behaviour (dropout etc.) while
+    # leaving the graph in place.
+    module.eval()
+    out = module(
+        input_marking=marking_tensors,
+        input_values=values_tensors,
+        batch_size=1,
+    )
+
+    target_activation = out[target_transition].squeeze()
+    base_activation = float(target_activation.detach().item())
+
+    # Single backward pass — gradients populate the .grad attribute
+    # of every requires_grad=True input tensor.
+    target_activation.backward()
+
+    marking_gradients = {
+        p: float(t.grad.item()) if t.grad is not None else 0.0
+        for p, t in marking_tensors.items()
+    }
+    value_gradients: dict[str, float] = {}
+    if values_tensors is not None:
+        value_gradients = {
+            p: float(t.grad.item()) if t.grad is not None else 0.0
+            for p, t in values_tensors.items()
+        }
+
+    return SensitivityReport(
+        target_transition=target_transition,
+        target_label=module.net.transition_labels.get(
+            target_transition, target_transition
+        ),
+        base_activation=base_activation,
+        marking_gradients=marking_gradients,
+        value_gradients=value_gradients,
+    )
+
+
+def input_importance(
+    module: PetriNetModule,
+    traces: list[XESTrace],
+    *,
+    attribute_to_marking: AttributeToMarking,
+    transitions: list[str] | None = None,
+    attribute_to_values: AttributeToValues | None = None,
+) -> dict[str, float]:
+    """Aggregate per-input importance across a trace set.
+
+    For each trace and each scored transition, computes the
+    gradient of that transition's firing activation with respect
+    to each input. Aggregates by *summing the absolute gradients*
+    across traces and transitions — places with a large summed
+    gradient are the ones the trained network leans on most
+    heavily for its overall decision-making.
+
+    The aggregate is reported separately for the marking channel
+    and the value channel: a key like ``"marking:p_request"`` or
+    ``"value:p_submitted"`` keeps the two channels distinguishable
+    in scenarios where both matter.
+
+    Parameters
+    ----------
+    module
+        The trained module.
+    traces
+        The trace set across which to aggregate. Importance is
+        averaged-by-summation, so a larger trace set gives more
+        stable scores.
+    attribute_to_marking
+        Maps each trace to its input marking dict.
+    transitions
+        Which transitions' activations to score against. Defaults
+        to "all transitions whose label doesn't look auto-generated"
+        — matches the convention used by ``train_on_traces`` and
+        ``anomaly_score``.
+    attribute_to_values
+        Optional value channel — same role as in
+        ``train_on_traces``.
+
+    Returns
+    -------
+    dict[str, float]
+        Importance scores keyed by ``"<channel>:<place_id>"``.
+        Sorted-by-descending-value through ``sorted(..., reverse=True)``
+        on ``.items()`` gives the ranked importance list.
+    """
+    net = module.net
+    if transitions is None:
+        # Same default as train_on_traces / anomaly_score — skip
+        # auto-generated gateway transitions.
+        transitions = sorted(
+            t for t in net.transitions
+            if "->" not in net.transition_labels.get(t, t)
+        )
+
+    importance: dict[str, float] = {}
+
+    for trace in traces:
+        base_marking = attribute_to_marking(trace)
+        base_values = (
+            attribute_to_values(trace)
+            if attribute_to_values is not None
+            else None
+        )
+        for t in transitions:
+            report = transition_sensitivity(
+                module, base_marking, t, base_values=base_values,
+            )
+            for place, grad in report.marking_gradients.items():
+                key = f"marking:{place}"
+                importance[key] = importance.get(key, 0.0) + abs(grad)
+            for place, grad in report.value_gradients.items():
+                key = f"value:{place}"
+                importance[key] = importance.get(key, 0.0) + abs(grad)
+
+    return importance
+
+
+def prose_for_sensitivity(
+    report: SensitivityReport,
+    *,
+    top_n: int = 3,
+    input_labels: dict[str, str] | None = None,
+) -> str:
+    """Render a sensitivity report as a paragraph in plain English.
+
+    Lists the top-N inputs ranked by absolute gradient magnitude,
+    with directional language ("increasing this input raises /
+    lowers the firing of …") so the reader doesn't have to map a
+    signed number to behaviour themselves.
+
+    Parameters
+    ----------
+    report
+        The :class:`SensitivityReport` to describe.
+    top_n
+        How many inputs to enumerate (default 3). The full ranking
+        is available via ``report.ranked()``; the prose just picks
+        the leading items.
+    input_labels
+        Optional ``{place_id: human_label}`` mapping for
+        substituting domain terms ("application amount" rather
+        than "p_application"). Each key is a place id (without
+        the channel prefix); both channels of the same place will
+        be relabelled together.
+    """
+    labels = input_labels or {}
+    ranking = report.ranked(top_n=top_n)
+    if not ranking:
+        return (
+            f"No measurable sensitivity at the base point for "
+            f"{report.target_label!r}."
+        )
+
+    lines = [
+        f"At the base point, the firing of {report.target_label!r} "
+        f"(activation {report.base_activation:.3f}) is most "
+        f"sensitive to:"
+    ]
+    for i, (place, channel, grad) in enumerate(ranking, start=1):
+        label = labels.get(place, place)
+        direction = "raises" if grad > 0 else "lowers"
+        if grad == 0:
+            direction = "leaves unchanged"
+        channel_note = (
+            "" if channel == "marking" else " (per-token value)"
+        )
+        lines.append(
+            f"  {i}. {label}{channel_note} — gradient "
+            f"{grad:+.3f}; increasing it {direction} the firing."
+        )
+    return "\n".join(lines)

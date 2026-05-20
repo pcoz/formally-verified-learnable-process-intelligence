@@ -792,8 +792,24 @@ need more.
   0.03 with 95% confidence over 100 resamples; direction agrees
   in 98% of resamples*" is the production-trust threshold any
   regulator would ask for.
-- [ ] **Sensitivity analysis.** Which input matters most? Which
-  transition is the model leaning on hardest?
+- [x] **Sensitivity analysis.** `transition_sensitivity(module,
+  base_marking, target_transition, *, base_values=None)` returns a
+  `SensitivityReport` with per-input gradient magnitudes of the
+  target's firing activation at the base point — both the marking
+  channel and the coloured-token value channel. `input_importance(
+  module, traces, *, attribute_to_marking, ...)` aggregates absolute
+  gradients across a trace set and all scored transitions to rank
+  the inputs the trained network leans on most. Both use torch
+  autograd directly on the input tensors; gradients are local
+  properties of the trained function (saturated regions produce
+  smaller gradients), so the prose helper reports the base
+  activation alongside the gradient ranking. `prose_for_sensitivity(
+  report, *, top_n=3, input_labels=None)` renders a ranked list as
+  a paragraph with directional language ("increasing this input
+  raises / lowers the firing of …"). Together with the rule
+  extractor and counterfactual analysis this completes the
+  diagnostic toolkit: *which inputs matter → which threshold rules
+  them → what change would flip the outcome*.
 - [ ] **Cross-variant comparison reports.** "These two variants
   agree on 87% of the input domain; here's the band where they
   diverge." Pairs naturally with the cost-ranked refactoring

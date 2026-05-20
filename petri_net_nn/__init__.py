@@ -56,6 +56,7 @@ from petri_net_nn.interpretability import (
     AndJoinRule,
     AndJoinRuleCI,
     Counterfactual,
+    SensitivityReport,
     XORPartition,
     XORRegion,
     XORRule,
@@ -72,9 +73,12 @@ from petri_net_nn.interpretability import (
     find_and_join_transitions,
     find_counterfactual,
     find_xor_groups,
+    input_importance,
     prose_for_and_join_rule,
     prose_for_counterfactual,
+    prose_for_sensitivity,
     prose_for_xor_rule,
+    transition_sensitivity,
 )
 from petri_net_nn.petri_net import PetriNet
 from petri_net_nn.subnets import (
@@ -122,6 +126,7 @@ __all__ = [
     "SagaSubnet",
     "ScenarioContext",
     "TrainingConfig",
+    "SensitivityReport",
     "SequentialSubnet",
     "SharpnessScheduler",
     "SoundnessReport",
@@ -157,6 +162,7 @@ __all__ = [
     "find_deadlocks",
     "find_xor_groups",
     "implies",
+    "input_importance",
     "insert_event",
     "load_scenario",
     "parse_bpmn",
@@ -169,6 +175,7 @@ __all__ = [
     "place_has_token",
     "prose_for_and_join_rule",
     "prose_for_counterfactual",
+    "prose_for_sensitivity",
     "prose_for_xor_rule",
     "reachability_graph",
     "satisfies",
@@ -180,5 +187,6 @@ __all__ = [
     "trace_occurrence_vector",
     "train_on_traces",
     "transition_enabled",
+    "transition_sensitivity",
     "weak_bisimulation_equivalence_classes",
 ]

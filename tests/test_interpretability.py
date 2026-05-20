@@ -12,6 +12,7 @@ from petri_net_nn import (
     Counterfactual,
     PetriNet,
     PetriNetModule,
+    SensitivityReport,
     XESEvent,
     XESTrace,
     XORRuleCI,
@@ -27,14 +28,17 @@ from petri_net_nn import (
     find_and_join_transitions,
     find_counterfactual,
     find_xor_groups,
+    input_importance,
     load_scenario,
     parse_bpmn,
     parse_xes,
     prose_for_and_join_rule,
     prose_for_counterfactual,
+    prose_for_sensitivity,
     prose_for_xor_rule,
     swap_event_labels,
     train_on_traces,
+    transition_sensitivity,
 )
 
 
@@ -796,3 +800,180 @@ def test_find_counterfactual_value_channel_requires_base_values():
             target_transition="t_a",
             flip_channel="value",
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 13 — sensitivity analysis.
+#
+# Sensitivity tells you *which input* the model leans on at a given
+# base point. The XOR fixture's trained crossover sits near 0.5, so
+# evaluating sensitivity at risk_score = 0.5 — right at the
+# decision boundary — should produce a large gradient with respect
+# to p_f0 (the routing input). At saturated values (0.0 or 1.0)
+# the gradient shrinks because the sigmoid has already decided.
+# ---------------------------------------------------------------------------
+
+
+def test_transition_sensitivity_at_decision_boundary_is_nonzero():
+    """Evaluated at the trained crossover, the gradient of the
+    'above' branch's firing activation with respect to the routing
+    input should be substantial — that's the input the model is
+    leaning on."""
+    module = _trained_xor_module()
+    transitions = next(
+        ts for p, ts in find_xor_groups(module.net) if p == "p_f0"
+    )
+    report = transition_sensitivity(
+        module,
+        base_marking={"p_f0": 0.5},
+        target_transition=transitions[0],
+    )
+    assert isinstance(report, SensitivityReport)
+    # Activation at the crossover should be near 0.5 (we're at the
+    # decision boundary).
+    assert 0.2 < report.base_activation < 0.8
+    # The gradient at p_f0 should be substantial (well above zero).
+    assert abs(report.marking_gradients["p_f0"]) > 0.5
+
+
+def test_transition_sensitivity_saturates_far_from_boundary():
+    """At a fully-saturated input (well above or below the
+    crossover), the gradient should be much smaller — the sigmoid
+    has effectively decided. We pick risk_score = 0.99 which is
+    deep in one of the saturation regions for the trained model."""
+    module = _trained_xor_module()
+    transitions = next(
+        ts for p, ts in find_xor_groups(module.net) if p == "p_f0"
+    )
+    report_saturated = transition_sensitivity(
+        module,
+        base_marking={"p_f0": 0.99},
+        target_transition=transitions[0],
+    )
+    report_at_boundary = transition_sensitivity(
+        module,
+        base_marking={"p_f0": 0.5},
+        target_transition=transitions[0],
+    )
+    # The boundary gradient should be bigger than the saturated
+    # gradient — that's the whole point of "sensitivity is local."
+    assert abs(report_at_boundary.marking_gradients["p_f0"]) > abs(
+        report_saturated.marking_gradients["p_f0"]
+    )
+
+
+def test_transition_sensitivity_includes_value_channel_when_supplied():
+    """On the credit-approval CPN scenario, t_approve's firing
+    pivots on the per-token *value* at p_submitted, not the place
+    activation. Sensitivity should reflect that — the value
+    gradient at p_submitted should be the dominant one."""
+    ctx = load_scenario(
+        Path(__file__).parent.parent
+        / "examples"
+        / "credit_approval_coloured"
+        / "scenario.toml"
+    )
+    module, _ = ctx.train()
+    # Evaluate near the learned threshold so we're at the
+    # boundary, not in a saturated regime.
+    report = transition_sensitivity(
+        module,
+        base_marking={"p_submitted": 1.0},
+        base_values={"p_submitted": 1000.0},
+        target_transition="t_approve",
+    )
+    assert "p_submitted" in report.value_gradients
+    # Value gradient should be measurable (non-zero in either
+    # direction). We don't test the sign because training
+    # dynamics + the auto-scaled guard sharpness can flip it
+    # either way for the linearisation point.
+    assert report.value_gradients["p_submitted"] != 0.0
+
+
+def test_sensitivity_ranked_orders_by_absolute_gradient():
+    """The .ranked() method should put the largest-magnitude
+    inputs first. Build a small net where one input dominates
+    and verify the ranking."""
+    report = SensitivityReport(
+        target_transition="t",
+        target_label="t",
+        base_activation=0.5,
+        marking_gradients={"p_a": 0.1, "p_b": -2.0, "p_c": 1.5},
+        value_gradients={"p_d": 0.05},
+    )
+    ranking = report.ranked()
+    # Sorted by |gradient| descending. Expect: p_b (2.0), p_c (1.5),
+    # p_a (0.1), p_d (0.05).
+    assert [r[0] for r in ranking] == ["p_b", "p_c", "p_a", "p_d"]
+
+
+def test_input_importance_aggregates_across_traces_and_transitions():
+    """Aggregate input importance across the XOR trace set should
+    rank p_f0 (the routing input) as the dominant input —
+    that's the only input the model cares about for routing
+    decisions, and the trace set drives the model through both
+    branches."""
+    module = _trained_xor_module()
+    traces = parse_xes(FIXTURES / "xor_log.xes")
+    importance = input_importance(
+        module,
+        traces,
+        attribute_to_marking=_xor_marking,
+    )
+    # Should contain p_f0 in the marking channel, with the largest
+    # importance score of any input.
+    assert "marking:p_f0" in importance
+    top_input = max(importance, key=importance.get)
+    assert top_input == "marking:p_f0"
+
+
+def test_prose_for_sensitivity_lists_top_inputs():
+    """The prose helper should produce a readable paragraph
+    naming the top-N inputs by absolute gradient and including
+    the direction language."""
+    report = SensitivityReport(
+        target_transition="t_approve",
+        target_label="approve loan",
+        base_activation=0.5,
+        marking_gradients={"p_a": 0.1, "p_b": -2.0, "p_c": 1.5},
+    )
+    text = prose_for_sensitivity(report, top_n=2)
+    assert "approve loan" in text
+    # Top-2 by magnitude: p_b (2.0), p_c (1.5)
+    assert "p_b" in text
+    assert "p_c" in text
+    # p_a (smallest magnitude) shouldn't be in the top-2 output.
+    assert "p_a" not in text
+    # Direction language should be there.
+    assert "raises" in text or "lowers" in text
+
+
+def test_prose_for_sensitivity_uses_input_label_overrides():
+    """The input_labels override should substitute domain terms
+    for raw place ids — same pattern as the other prose helpers."""
+    report = SensitivityReport(
+        target_transition="t_approve",
+        target_label="approve loan",
+        base_activation=0.5,
+        marking_gradients={"p_submitted": -1.5},
+    )
+    text = prose_for_sensitivity(
+        report,
+        input_labels={"p_submitted": "application amount"},
+    )
+    assert "application amount" in text
+    assert "p_submitted" not in text
+
+
+def test_prose_for_sensitivity_handles_empty_report():
+    """An empty sensitivity report shouldn't crash the prose
+    helper — it should produce a meaningful "no measurable
+    sensitivity" message."""
+    report = SensitivityReport(
+        target_transition="t_isolated",
+        target_label="isolated step",
+        base_activation=0.5,
+    )
+    text = prose_for_sensitivity(report)
+    assert "isolated step" in text
+    assert "No measurable sensitivity" in text or "no measurable sensitivity" in text.lower()
