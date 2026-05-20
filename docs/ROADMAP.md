@@ -659,11 +659,22 @@ Strong bisimulation is the bare minimum. Real formal-methods workflows
 ask for more, and PETRA's claim to be the formal-verification-meets-ML
 story depends on having more to offer than the floor.
 
-- [ ] **Weak and branching bisimulation.** Treats internal silent
-  transitions correctly, so a refactoring with different internal
-  structure but the same observable behaviour gets recognised as
-  equivalent. The strong-bisimulation we have today rejects these
-  as different nets.
+- [x] **Weak bisimulation.** Transitions marked ``silent=True``
+  on the net are collapsed via a τ-saturation step before
+  partition refinement, so refactorings that introduce internal
+  logging hooks, no-op routing gates, internal handoffs, or any
+  other structural artefact that nobody outside the implementation
+  cares about get correctly recognised as behaviourally equivalent
+  to the reference. Implemented as ``are_weakly_bisimilar(net1,
+  net2)`` and ``weak_bisimulation_equivalence_classes(net)`` in
+  ``bisimulation.py``; the saturation step makes every state
+  τ-self-reachable, extends τ-paths into direct τ-edges, and
+  flanks every visible-action edge with τ-prefixes and τ-suffixes
+  through all τ-reachable neighbours. Strong bisimulation over
+  the saturated LTS is exactly weak bisimulation over the
+  original. Branching bisimulation (the strictly finer variant
+  that respects the choice points along τ-paths) remains a
+  follow-up.
 - [ ] **CTL and LTL property checking.** Temporal-logic invariants:
   "eventually the order ships", "authentication always precedes
   data access". You can't ask PETRA these questions today.

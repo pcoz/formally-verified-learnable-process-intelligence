@@ -117,6 +117,16 @@ class PetriNet:
         default_factory=dict
     )
 
+    # Silent (τ) transitions for weak bisimulation. Transitions in
+    # this set fire normally in every other context — the token-game,
+    # the compiler, anomaly scoring — but the weak-bisimulation
+    # checker treats them as invisible internal steps that can be
+    # inserted or removed without changing observable behaviour.
+    # Used to model logging steps, internal handoffs, no-op gates,
+    # or any refactoring artefact that shouldn't count as a visible
+    # action when comparing two variants for equivalence.
+    silent_transitions: set[str] = field(default_factory=set)
+
     def add_place(self, pid: str, *, label: str | None = None, tokens: int = 0) -> None:
         self.places.add(pid)
         if label is not None:
@@ -134,6 +144,7 @@ class PetriNet:
         guard: GuardFn | None = None,
         structural_guard: dict | None = None,
         torch_guard: Callable | None = None,
+        silent: bool = False,
     ) -> None:
         """Add a transition.
 
@@ -177,6 +188,16 @@ class PetriNet:
         and ``torch_guard`` are supplied, the torch callable wins in
         the compiler (it's strictly more expressive). The token-game
         is unaffected by ``torch_guard`` either way.
+
+        ``silent=True`` marks the transition as a τ (silent) step
+        for weak-bisimulation purposes. The transition still fires
+        normally in the token-game and contributes to the trained
+        network the same way every other transition does — silence
+        is *only* a property the weak-bisimulation checker reads
+        when deciding whether two nets exhibit the same observable
+        behaviour. Use it for internal logging steps, no-op gates,
+        and other refactoring artefacts that shouldn't count as
+        visible actions in an equivalence check.
         """
         if duration < 1:
             raise ValueError(
@@ -212,6 +233,8 @@ class PetriNet:
                     f"got {type(torch_guard).__name__}"
                 )
             self.transition_torch_guards[tid] = torch_guard
+        if silent:
+            self.silent_transitions.add(tid)
 
     def duration(self, transition: str) -> int:
         """The transition's firing duration in time-unrolled steps.
@@ -544,6 +567,13 @@ class PetriNet:
                 issues.append(
                     f"torch output value on arc {src!r} -> {dst!r}: only "
                     f"transition -> place arcs may carry output values"
+                )
+
+        for transition in self.silent_transitions:
+            if transition not in self.transitions:
+                issues.append(
+                    f"silent flag recorded for unknown transition "
+                    f"{transition!r}"
                 )
 
         for (src, dst) in self.arc_output_values:

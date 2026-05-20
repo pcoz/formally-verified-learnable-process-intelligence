@@ -12,8 +12,10 @@ from petri_net_nn.anomalies import (
 )
 from petri_net_nn.bisimulation import (
     are_bisimilar,
+    are_weakly_bisimilar,
     bisimulation_equivalence_classes,
     reachability_graph,
+    weak_bisimulation_equivalence_classes,
 )
 from petri_net_nn.bpmn import parse_bpmn
 from petri_net_nn.pnml import parse_pnml, to_pnml
@@ -74,6 +76,7 @@ __all__ = [
     "XORSubnet",
     "anomaly_score",
     "are_bisimilar",
+    "are_weakly_bisimilar",
     "auc",
     "bisimulation_equivalence_classes",
     "drop_event",
@@ -101,4 +104,5 @@ __all__ = [
     "trace_anomaly_score",
     "trace_occurrence_vector",
     "train_on_traces",
+    "weak_bisimulation_equivalence_classes",
 ]

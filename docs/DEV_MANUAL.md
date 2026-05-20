@@ -287,13 +287,30 @@ the group is largest.
 ### 3.8 `bisimulation.py` — formal equivalence checking
 
 ```python
-from petri_net_nn import are_bisimilar, bisimulation_equivalence_classes, reachability_graph
+from petri_net_nn import (
+    are_bisimilar,
+    are_weakly_bisimilar,
+    bisimulation_equivalence_classes,
+    weak_bisimulation_equivalence_classes,
+    reachability_graph,
+)
 ```
 
 Strong bisimulation on the labelled transition system via partition
 refinement. `are_bisimilar(net1, net2)` returns `True` iff the two
 nets exhibit identical labelled future behaviour from their initial
 markings.
+
+Weak bisimulation collapses transitions flagged ``silent=True``
+on the net — internal logging hooks, no-op routing gates, internal
+handoffs — before comparison. ``are_weakly_bisimilar(net1, net2)``
+treats every silent transition as a τ-edge, saturates the
+combined LTS so τ-paths become direct edges and visible-action
+edges gain τ-prefix / τ-suffix detours, then runs strong
+bisimulation on the saturated LTS. The net effect: refactorings
+that add or remove internal-only structural artefacts no longer
+break the equivalence claim, which is the case the cost-ranked
+refactoring story relies on.
 
 ### 3.9 `subnets.py` — hand-built reference subnets
 
@@ -435,5 +452,5 @@ python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
 
-Current test count: 313 passing across the framework and the
+Current test count: 320 passing across the framework and the
 end-to-end scenarios.
