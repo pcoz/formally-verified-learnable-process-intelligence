@@ -14,9 +14,11 @@
 > process analysts, compliance officers, and project managers.
 
 **PETRA** (*Petri-Net Trained Architecture*) learns how a
-**discrete-event system** actually behaves from its **execution
-logs**, and turns the learned behaviour into four things you can
-act on:
+**discrete-event system routes through its structure** from its
+**execution logs** — fitting per-transition firing propensities
+conditional on the input marking, over a fixed Petri-net
+substrate — and turns the learned dynamics into four things you
+can act on:
 
 - **Readable decision rules** — distilled from the trained weights
   in domain vocabulary, e.g. *"if amount > £1,000 → credit-review."*
@@ -51,16 +53,51 @@ PETRA compiles the Petri net into a neural network whose
 one trainable threshold per transition, nothing else can be
 learned.* Training fits the network to the log. Because every
 parameter corresponds to a named element of the original structure,
-the trained model stays:
+the trained model stays interpretable: every parameter has a
+name from your domain, and rule extraction, anomaly scoring,
+counterfactuals, and sensitivity analysis all speak in those
+names.
 
-- **interpretable** — every parameter has a name from your domain;
-- **structurally verified** — by construction, before you train;
-- **amenable to formal analysis** — bisimulation, soundness,
-  equivalence proofs over the structure.
+---
 
-That last property is what makes **equivalence proofs** and
-**cost-ranked refactoring** possible — neither of which you can do
-with a generic ML model.
+## Three layers of guarantee
+
+PETRA's positioning sits at the intersection of formal methods
+and learned dynamics. It's worth being precise about which
+guarantees come from where, because the three layers are
+genuinely different:
+
+1. **The Petri-net substrate is *structurally* verified.**
+   Bisimulation (strong and weak), Aalst soundness, deadlock
+   localisation, CTL temporal-logic model checking all operate
+   on the Petri net itself and its reachable-marking graph.
+   These are mathematical proofs about the structure — not
+   about anything that has been learned.
+
+2. **The compiled neural topology preserves the substrate.**
+   By construction, parameters exist *only* at the arcs and
+   transitions of the Petri net (one trainable weight per arc,
+   one trainable threshold per transition). The structural
+   constraint of layer 1 carries through verbatim into the
+   trained model — there is no weight outside the flow
+   relation that could "learn around" the verified structure.
+
+3. **The learned parameters are interpretable and testable —
+   not themselves formally verified.** Rule extraction reads
+   them as decision rules; bootstrap CIs report their stability
+   under data resampling; counterfactual analysis and
+   per-input sensitivity make the dependence on inputs
+   auditable; cross-variant comparison reports empirical
+   agreement over a chosen input domain. These are **empirical
+   guarantees about learned dynamics**, not formal guarantees
+   in the layer-1 sense — and that distinction matters when
+   you're talking to a regulator or a model-risk committee.
+
+Equivalence proofs and cost-ranked refactoring exist at the
+*intersection* of these layers — the structural equivalence
+check is layer 1, the cost numbers come from layer 3's trained
+firing-probability outputs, and the layer-2 topology
+preservation is what makes the two compose.
 
 ---
 
@@ -151,7 +188,7 @@ question over the same Petri-net structure:
 |---|---|---|
 | **CPN Tools** (Aarhus) | Reference implementation of Coloured Petri Nets — full ML-style colour-set typing, state-space verification, mature GUI simulator. | CPN Tools verifies a *given* CPN; PETRA *trains* a model of how the net's transitions are actually used from execution traces, including learning guard thresholds from per-token values rather than taking them as given. CPN Tools' colour sets are far richer than PETRA's CPN-lite scalar token values. |
 | **GreatSPN** (Turin) | Generalised Stochastic Petri Nets — exponentially-distributed firing times, analytical CTMC throughput, performance bounds. | GreatSPN gives closed-form stationary throughput under a stipulated rate model; PETRA's stochastic rates are compiler-level multipliers used during training. Different question. |
-| **TINA** (LAAS-CNRS) | Time Petri nets with intervals, state-space exploration, integrated CTL/LTL model checking via NuSMV. | TINA proves temporal-logic invariants about the *specified* behaviour; PETRA learns how the deployed system actually behaves and flags deviations. Phase 11 of the PETRA roadmap aims to wire model checking in directly. |
+| **TINA** (LAAS-CNRS) | Time Petri nets with intervals, state-space exploration, integrated CTL/LTL model checking via NuSMV. | TINA proves temporal-logic invariants about the *specified* behaviour; PETRA fits transition-firing propensities to observed traces and flags deviations from those learned propensities. Phase 11 wires CTL in directly (`check_ctl`). |
 | **ProM** (Eindhoven) | Process mining — Alpha / Inductive / Heuristics miners discover a Petri net from execution logs; conformance checking; large plugin ecosystem. | ProM does *structure discovery* from logs (Phase 12 of PETRA's roadmap, not yet built). The two are a natural pair: ProM discovers, PETRA trains dynamics on the result. |
 
 **The thing PETRA does that none of them do:** combine a

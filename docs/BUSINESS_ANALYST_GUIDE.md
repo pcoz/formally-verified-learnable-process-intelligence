@@ -187,9 +187,30 @@ processes this is usually finite; PETRA enumerates it when needed.
 PETRA isn't just a Petri-net library. The classical Petri-net
 world has been around for sixty years. PETRA adds **learning**:
 you give it a Petri net **and** an execution log, and PETRA fits
-a model of how the process *actually* behaves to the log, in a way
-that stays interpretable at the granularity of your original
-diagram.
+firing-propensity parameters that capture how the process *routes
+through its structure*, in a way that stays interpretable at the
+granularity of your original diagram.
+
+### Three layers of guarantee
+
+PETRA combines formal-methods machinery with learned dynamics. It
+is worth being explicit about which guarantees come from where,
+because the three layers carry different kinds of confidence:
+
+| Layer | What it covers | What the guarantee is |
+|---|---|---|
+| **1 — the Petri-net substrate** | The structure itself: places, transitions, arcs, the reachable-marking graph. | **Mathematical proofs.** Bisimulation, Aalst soundness, deadlock localisation, CTL temporal-logic checking. These hold *regardless of any training* — they're properties of the net. |
+| **2 — the compiled neural topology** | The trainable network's weight set. | **Preserved by construction.** Exactly one trainable weight per arc, one trainable threshold per transition, no parameters outside the flow relation. The layer-1 structural constraint carries through verbatim. |
+| **3 — the learned parameters** | The values of those weights and thresholds after training. | **Empirical.** Rule extraction reads them; bootstrap CIs report their stability under data resampling; counterfactuals and sensitivity make the dependence on inputs auditable; cross-variant comparison reports empirical agreement. These are *evidence*, not *proof*. |
+
+The distinction matters when you're talking to a regulator or a
+model-risk committee. Saying *"the Petri net is sound"* is a
+proof. Saying *"the trained threshold for the credit-check is
+0.486 ± 0.02 with 98% direction-agreement across 100 bootstrap
+resamples"* is strong empirical evidence — but it isn't a proof
+in the layer-1 sense. PETRA gives you both kinds of confidence
+in one tool, which is unusual; what's important is not to
+conflate them.
 
 The following sections explain the framework's modelling features
 — the ways in which PETRA's Petri nets go beyond the bare
@@ -419,6 +440,51 @@ The training signal: each trace tells PETRA *which transitions
 actually fired in that instance*. PETRA adjusts its weights so its
 predicted activations match the observed firings, across all
 traces in the log.
+
+### What the training does (and doesn't) actually learn
+
+This is worth being precise about, because the framing "PETRA
+learns how the process behaves" can be read more broadly than
+the training objective actually supports.
+
+What PETRA's training **does** learn:
+
+- **Per-transition firing propensities** — for each transition
+  in the net, the probability it fires in an instance, conditional
+  on the *input marking* derived from that instance's attributes.
+- **Routing-decision rules** — when several transitions share an
+  input place and the data conditions which one fires, the
+  learned weights and thresholds recover that decision rule.
+- **AND-join quorums** — when a synchronisation step waits for
+  some-or-all of its inputs, the learned threshold captures
+  the rule.
+- **Coloured-Petri-net guard thresholds** — when a transition
+  guard is declared structurally (`{place, op, value}`), the
+  value is initialised at the modeller's declared boundary and
+  refined from data.
+
+What PETRA's training **does not** learn directly:
+
+- **Step-by-step temporal dynamics.** The training objective is
+  *which transitions fired in this instance* (a per-transition
+  occurrence target), not *in what order they fired*. The
+  underlying structure constrains valid orderings — only enabled
+  transitions can fire under the token-game semantics — but the
+  trained model isn't itself a sequence model.
+- **Inter-step duration distributions.** Transition durations
+  exist as a structural input (`add_transition(..., duration=N)`)
+  that affects the time-unrolled compiler; they are not fitted
+  from log timestamps.
+- **Probabilities of trace prefixes or full event sequences.**
+  PETRA doesn't compute "probability that this trace prefix
+  continues with X next." That's a sequential-likelihood
+  question for a different class of model.
+
+This is enough to recover the most common decision and
+synchronisation rules a process model carries — which is why
+the rule-extraction and anomaly-detection outputs work — but it
+is a more modest claim than "fully learns the process
+dynamics."
 
 ### What the trained model captures
 

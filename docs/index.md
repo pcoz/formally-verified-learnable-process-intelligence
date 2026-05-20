@@ -1,12 +1,24 @@
 # PETRA — formally-verified learnable process intelligence
 
 **PETRA** (*Petri-Net Trained Architecture*) learns how a
-**discrete-event system** actually behaves from its **execution
-logs**, and turns the learned behaviour into things you can act
-on: readable decision rules, anomaly scores pinned to specific
-named elements, formal equivalence proofs between system
+**discrete-event system routes through its structure** from its
+**execution logs** — fitting per-transition firing propensities
+conditional on the input marking, over a fixed Petri-net
+substrate — and turns the learned dynamics into things you can
+act on: readable decision rules, anomaly scores pinned to
+specific named elements, formal equivalence proofs between system
 variants, and cost rankings over behaviour-preserving
 refactorings.
+
+PETRA sits at the intersection of two distinct guarantee
+regimes: the **Petri-net substrate** carries strict structural
+guarantees (bisimulation, soundness, CTL — all mathematical
+proofs about reachable markings, not about anything learned),
+while the **learned dynamics** within that substrate carry
+empirical guarantees (interpretable rules with bootstrap CIs,
+counterfactuals, per-input sensitivity, cross-variant
+agreement). See the README's "Three layers of guarantee"
+section for the precise three-layer story.
 
 ```
 pip install petra-nn
