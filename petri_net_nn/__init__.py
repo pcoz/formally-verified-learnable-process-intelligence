@@ -49,6 +49,7 @@ from petri_net_nn.ctl import (
     satisfies,
     transition_enabled,
 )
+from petri_net_nn.onnx_export import export_onnx
 from petri_net_nn.pnml import parse_pnml, to_pnml
 from petri_net_nn.sif import parse_sif
 from petri_net_nn.soundness import (
@@ -164,6 +165,7 @@ __all__ = [
     "drop_event",
     "expected_cost",
     "explain_anomaly",
+    "export_onnx",
     "extract_and_join_rule",
     "extract_and_join_rules",
     "extract_routing_partitions",

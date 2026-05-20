@@ -882,8 +882,28 @@ that's the consuming application's call.
   to files outside `docs/` (README, examples, source) use
   absolute GitHub URLs so they resolve cleanly in both the
   GitHub-rendered view and the MkDocs site.
-- [ ] **ONNX export.** Trained `PetriNetModule` shipped to anywhere
-  ONNX runs — C++, Java, the browser.
+- [x] **ONNX export.** `petri_net_nn.onnx_export.export_onnx(
+  module, output_path, *, input_places, input_value_places=None,
+  output_transitions=None, batch_size=1, opset_version=17,
+  dynamic_batch=True)` wraps the trained `PetriNetModule`'s
+  dict-input forward pass in a positional-args adapter and calls
+  `torch.onnx.export`. The exported `.onnx` file runs unchanged
+  in any ONNX runtime — onnxruntime in Python / C++ / Java /
+  browser, plus the various accelerator stacks that consume
+  ONNX. The export validates the requested input / output place
+  and transition names against the net before tracing, marks
+  the batch axis as dynamic by default, and returns a schema
+  dict the caller can serialise as a JSON sidecar so
+  consumers in other languages know which positional tensor
+  corresponds to which place. Limitation carried forward:
+  time-unrolled mode with non-uniform transition durations
+  uses Python lists for the in-flight queue, which don't
+  survive ONNX tracing — acyclic mode and uniform-duration
+  time-unrolled mode export cleanly. The torch legacy exporter
+  is used (`dynamo=False`) so the export path has no extra
+  runtime dependency beyond torch itself; the optional
+  `[onnx]` extra brings `onnxruntime` for the parity-test
+  surface.
 - [ ] **Streaming evaluator.** Consume a live event stream (Kafka,
   webhook, file-tail) and emit anomaly scores in real time, instead
   of needing a finished log.

@@ -65,6 +65,13 @@ docs = [
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.24",
 ]
+# ONNX runtime extras — needed only to exercise the ONNX-export
+# parity tests; the export itself uses torch's built-in
+# torch.onnx and has no extra runtime dependency. Install with:
+#     pip install petra-nn[onnx]
+onnx = [
+    "onnxruntime>=1.16",
+]
 
 [project.urls]
 Homepage = "https://fleetingswallow.com"

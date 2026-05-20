@@ -561,6 +561,44 @@ canonical workflow-net building blocks. The general
 `PetriNetModule` subsumes them; the hand-built versions stay as
 readable references and regression coverage.
 
+### 3.12 `onnx_export.py` — export to the ONNX interchange format
+
+```python
+from petri_net_nn import export_onnx
+
+schema = export_onnx(
+    trained_module,
+    "model.onnx",
+    input_places=["p_application"],
+    input_value_places=["p_application"],            # CPN value channel, optional
+    output_transitions=["t_approve", "t_decline"],
+)
+# `schema` is a JSON-serialisable dict mapping the ONNX-graph
+# input / output names back to PETRA's place / transition ids.
+# Ship it as a sidecar (e.g. model.onnx.json) so consumers in
+# other languages know which positional tensor maps to which
+# place.
+```
+
+The exported `.onnx` file runs unchanged in any ONNX runtime —
+`onnxruntime` in Python / C++ / Java / browser, plus the
+accelerator stacks (TensorRT, OpenVINO, Core ML via converters).
+Batch dimension is dynamic by default; opset 17 is the modern
+baseline.
+
+The dict-of-tensors interface PETRA uses (``input_marking={
+place_id: tensor}``) gets bridged by a small positional-args
+wrapper before tracing. The schema dict the function returns
+carries the canonical order: position *i* in the exported
+graph's positional inputs maps to `schema["input_marking_places"][i]`
+(or `input_value_places[i - n_marking]` for the value channel).
+
+The optional ``[onnx]`` install extra pulls in ``onnxruntime`` for
+the parity-test surface; the export itself only needs torch.
+Limitation: time-unrolled mode with non-uniform transition
+durations uses Python lists for the in-flight queue which don't
+survive ONNX tracing.
+
 ---
 
 ## 4. Examples folder
@@ -693,5 +731,5 @@ python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
 
-Current test count: 379 passing across the framework and the
+Current test count: 386 passing across the framework and the
 end-to-end scenarios.

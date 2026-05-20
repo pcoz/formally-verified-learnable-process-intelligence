@@ -34,8 +34,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           # Editable install so the test paths resolve cleanly.
-          # The [dev] extra brings in pytest.
-          python -m pip install -e ".[dev]"
+          # The [dev] extra brings in pytest; the [onnx] extra
+          # pulls in onnxruntime so the ONNX-export parity tests
+          # actually execute rather than being skipped via
+          # pytest.importorskip.
+          python -m pip install -e ".[dev,onnx]"
 
       - name: Run the full test suite
         run: python -m pytest -q
