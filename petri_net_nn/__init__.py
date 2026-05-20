@@ -50,6 +50,7 @@ from petri_net_nn.ctl import (
     transition_enabled,
 )
 from petri_net_nn.onnx_export import export_onnx
+from petri_net_nn.rest import build_app
 from petri_net_nn.streaming import (
     StreamingEvaluation,
     StreamingEvaluator,
@@ -165,6 +166,7 @@ __all__ = [
     "bisimulation_equivalence_classes",
     "bootstrap_and_join_rule",
     "bootstrap_xor_rule",
+    "build_app",
     "check_ctl",
     "check_soundness",
     "compare_variants",

@@ -79,6 +79,7 @@ nav:
       - Reference subnets: api/subnets.md
       - ONNX export: api/onnx_export.md
       - Streaming evaluator: api/streaming.md
+      - REST API: api/rest.md
 
 plugins:
   - search

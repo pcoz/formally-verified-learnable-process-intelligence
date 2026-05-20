@@ -34,11 +34,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           # Editable install so the test paths resolve cleanly.
-          # The [dev] extra brings in pytest; the [onnx] extra
-          # pulls in onnxruntime so the ONNX-export parity tests
-          # actually execute rather than being skipped via
-          # pytest.importorskip.
-          python -m pip install -e ".[dev,onnx]"
+          # The [dev] extra brings in pytest + httpx (for FastAPI
+          # TestClient); the [onnx] extra pulls in onnxruntime so
+          # the ONNX-export parity tests actually execute rather
+          # than being skipped via pytest.importorskip; the
+          # [rest] extra brings fastapi + uvicorn so the REST
+          # endpoint tests run too.
+          python -m pip install -e ".[dev,onnx,rest]"
 
       - name: Run the full test suite
         run: python -m pytest -q

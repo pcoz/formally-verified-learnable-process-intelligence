@@ -608,7 +608,45 @@ most real event sources have.
 Single-threaded by design. A multi-threaded source should
 serialise calls through a single consumer goroutine / queue.
 
-### 3.13 `onnx_export.py` — export to the ONNX interchange format
+### 3.13 `rest.py` — HTTP wrapper around a trained module
+
+```python
+from petri_net_nn import load_scenario, build_app
+import uvicorn
+
+ctx = load_scenario("my_scenario.toml")
+module, _ = ctx.train()
+app = build_app(module, title="My PETRA model", version="1.0.0")
+
+uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+
+`build_app(module, *, title, version, description=None)` returns
+a `FastAPI` application exposing six JSON endpoints:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /healthz` | Liveness probe + module stats (n_places, n_transitions, version). |
+| `GET /schema` | Static structure: places, transitions, labels, initial marking, flags for silent transitions and structural guards. |
+| `POST /forward` | One forward pass — `input_marking` + optional `input_values` → per-transition + per-place activations. |
+| `POST /anomaly` | Score a trace — `events` + `input_marking` → `trace_score` + per-transition residuals. |
+| `POST /counterfactual` | Delegates to ``find_counterfactual``; works on both the marking and value channels. |
+| `POST /sensitivity` | Delegates to ``transition_sensitivity``; per-input gradients at one base point. |
+
+The Swagger UI is auto-generated at `/docs` and `/redoc`;
+`/openapi.json` carries the OpenAPI 3.x schema. Pydantic gates
+input validation — bad place / transition names return 400 with
+useful messages rather than 500-ing inside the model.
+
+The `[rest]` optional install extra brings `fastapi` and
+`uvicorn`; `[dev]` brings `httpx` for the FastAPI TestClient.
+Importing `petri_net_nn` does not require either — the
+fastapi / pydantic imports are guarded at module load and
+`build_app` raises an `ImportError` when called without the
+deps. Single-model-per-app by design; auth / CORS / rate
+limiting are left to the caller's app layer.
+
+### 3.14 `onnx_export.py` — export to the ONNX interchange format
 
 ```python
 from petri_net_nn import export_onnx
@@ -778,5 +816,5 @@ python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
 
-Current test count: 396 passing across the framework and the
+Current test count: 408 passing across the framework and the
 end-to-end scenarios.

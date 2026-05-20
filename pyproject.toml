@@ -55,6 +55,10 @@ dependencies = [
 # Development extras — install with: pip install petra-nn[dev]
 dev = [
     "pytest>=7",
+    # httpx powers FastAPI's TestClient (used by the REST
+    # endpoint tests). Pulling it into [dev] rather than [rest]
+    # so production deployments don't carry it.
+    "httpx>=0.27",
 ]
 # Docs build extras — used by .github/workflows/docs.yml to
 # build the MkDocs Material site. Install with:
@@ -71,6 +75,13 @@ docs = [
 #     pip install petra-nn[onnx]
 onnx = [
     "onnxruntime>=1.16",
+]
+# REST inference API extras — `pip install petra-nn[rest]`
+# enables `petri_net_nn.rest.build_app(...)` and gives you an
+# ASGI server (uvicorn) to run the resulting FastAPI app under.
+rest = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
 ]
 
 [project.urls]

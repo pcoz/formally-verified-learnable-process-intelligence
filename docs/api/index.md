@@ -23,3 +23,4 @@ this site and the changes appear here automatically.
 | [Subnets](subnets.md) | Hand-built reference subnets — the five canonical workflow-net building blocks. |
 | [ONNX export](onnx_export.md) | Export a trained `PetriNetModule` to ONNX for deployment to any ONNX runtime (C++, Java, browser, mobile, edge). |
 | [Streaming evaluator](streaming.md) | Per-case real-time anomaly scoring against a live event source — `StreamingEvent`, `StreamingEvaluator`, push/pull shapes. |
+| [REST API](rest.md) | `build_app(module)` returns a FastAPI app exposing six endpoints (`/healthz`, `/schema`, `/forward`, `/anomaly`, `/counterfactual`, `/sensitivity`) for non-Python consumers. |

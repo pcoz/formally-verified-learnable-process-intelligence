@@ -920,8 +920,30 @@ that's the consuming application's call.
   offline `anomaly_score`, so streaming and batch share the same
   correctness story. Single-threaded by design; a multi-threaded
   deployment serialises through a single consumer.
-- [ ] **REST inference API.** A standard HTTP wrapper around a
-  trained module, for the inevitable non-Python consumers.
+- [x] **REST inference API.** `petri_net_nn.rest.build_app(module)`
+  returns a FastAPI application that exposes the trained module
+  over six JSON endpoints:
+  - `GET /healthz` (liveness + version + module-stats),
+  - `GET /schema` (places, transitions, labels, initial marking,
+    flags for silent transitions / structural guards),
+  - `POST /forward` (input marking + optional value channel →
+    per-transition + per-place activations),
+  - `POST /anomaly` (events + input marking → per-transition
+    residuals + trace-level scalar),
+  - `POST /counterfactual` (delegates to `find_counterfactual`,
+    supports marking and value channels),
+  - `POST /sensitivity` (delegates to `transition_sensitivity`).
+
+  FastAPI auto-generates OpenAPI 3.x + Swagger UI at `/docs`.
+  Pydantic models gate input validation and produce JSON
+  schemas; the fastapi / pydantic imports are guarded at module
+  load so `import petri_net_nn` works without the `[rest]`
+  extra installed and `build_app` raises a clear ImportError
+  if called without it. Optional `[rest]` extra brings fastapi
+  and uvicorn; `[dev]` brings httpx for the FastAPI TestClient.
+  Single-model-per-app by design — spin multiple FastAPI
+  processes for multi-model serving. Auth / CORS / rate
+  limiting are deliberately left to the caller's app layer.
 - [ ] **Workflow-engine plugins.** Camunda, Activiti, Flowable —
   train on production traces, push anomaly signals back into the
   engine's monitoring layer. This is what turns the

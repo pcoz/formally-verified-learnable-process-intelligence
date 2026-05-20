@@ -523,7 +523,7 @@ package's docstrings).
 ## Running tests
 
 ```
-python -m pytest                          # full suite (~396 tests)
+python -m pytest                          # full suite (~408 tests)
 python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
