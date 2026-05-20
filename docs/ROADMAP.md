@@ -867,8 +867,21 @@ that's the consuming application's call.
   publishing* (OIDC, no API token stored in the repo) when a
   `v*.*.*` git tag is pushed. The publish workflow file
   documents the one-time setup steps inline.
-- [ ] **Auto-built documentation site.** Sphinx or MkDocs pulling
-  from docstrings plus the manual, published on GitHub Pages.
+- [x] **Auto-built documentation site.** MkDocs Material with the
+  `mkdocstrings` Python handler pulling API reference from each
+  module's docstrings, the existing manuals (`BUSINESS_ANALYST_GUIDE.md`,
+  `DEV_MANUAL.md`, `ROADMAP.md`) rendered as site pages, and
+  `docs/index.md` as the landing page. Built and deployed by
+  `.github/workflows/docs.yml` on every push to `main` and
+  publishable manually via `workflow_dispatch`; uses
+  `actions/deploy-pages` with OIDC (no API tokens). Published at
+  <https://pcoz.github.io/formally-verified-learnable-process-intelligence/>.
+  One-time GitHub setting: repo Settings → Pages → set source to
+  "GitHub Actions" (documented inline in the workflow file).
+  Strict-mode build catches broken cross-references; cross-links
+  to files outside `docs/` (README, examples, source) use
+  absolute GitHub URLs so they resolve cleanly in both the
+  GitHub-rendered view and the MkDocs site.
 - [ ] **ONNX export.** Trained `PetriNetModule` shipped to anywhere
   ONNX runs — C++, Java, the browser.
 - [ ] **Streaming evaluator.** Consume a live event stream (Kafka,

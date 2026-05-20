@@ -1,0 +1,132 @@
+# MkDocs configuration for the PETRA documentation site.
+#
+# Built by .github/workflows/docs.yml on every push to main and
+# deployed to GitHub Pages. The published URL is
+#
+#   https://pcoz.github.io/formally-verified-learnable-process-intelligence/
+#
+# The site source is rooted at docs/ — the existing manuals
+# (BUSINESS_ANALYST_GUIDE.md, DEV_MANUAL.md, ROADMAP.md) live
+# there already; this config adds an index page, an API reference
+# section that uses mkdocstrings to pull docs from each module's
+# docstrings, and a navigation layout that matches the reading
+# order recommended by the README.
+
+site_name: PETRA
+site_description: >-
+  Petri-Net Trained Architecture — formally-verified learnable
+  process intelligence. API reference, business-analyst guide,
+  developer manual, and product roadmap.
+site_url: https://pcoz.github.io/formally-verified-learnable-process-intelligence/
+repo_url: https://github.com/pcoz/formally-verified-learnable-process-intelligence
+repo_name: pcoz/formally-verified-learnable-process-intelligence
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    # Tabs across the top for the major sections — cleaner than a
+    # flat sidebar for a site this big.
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.indexes
+    - navigation.top
+    - toc.follow
+    # Search behaviour Material's defaults are good; the suggest
+    # and highlight features make the search bar actually useful.
+    - search.suggest
+    - search.highlight
+    # Code-block conveniences for the many code examples in the
+    # docs and the auto-rendered API reference.
+    - content.code.copy
+    - content.code.annotate
+  palette:
+    # Light scheme. We deliberately stay with one palette — toggling
+    # between light and dark looks busy on a docs site and we don't
+    # have any user-saved preference machinery to keep it sticky.
+    - scheme: default
+      primary: indigo
+      accent: indigo
+  icon:
+    repo: fontawesome/brands/github
+
+# The navigation deliberately mirrors the README's "Reading order"
+# section. Anyone landing here cold should be able to read these
+# in the listed order and end up with a working mental model.
+nav:
+  - Home: index.md
+  - Business Analyst Guide: BUSINESS_ANALYST_GUIDE.md
+  - Developer Manual: DEV_MANUAL.md
+  - Roadmap: ROADMAP.md
+  - API Reference:
+      - Overview: api/index.md
+      - PetriNet (data model): api/petri_net.md
+      - PetriNetModule (compiler): api/compiler.md
+      - Adapter (TOML scenario loader): api/adapter.md
+      - BPMN importer: api/bpmn.md
+      - PNML importer / exporter: api/pnml.md
+      - SIF importer: api/sif.md
+      - XES log loader: api/xes.md
+      - Training and anomaly scoring: api/traces.md
+      - Anomaly generators + baseline: api/anomalies.md
+      - Bisimulation (strong + weak): api/bisimulation.md
+      - Soundness + deadlock localisation: api/soundness.md
+      - CTL temporal-logic checker: api/ctl.md
+      - Interpretability (rules, CIs, counterfactuals, sensitivity): api/interpretability.md
+      - Reference subnets: api/subnets.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      # Use the Python handler with sensible defaults: show source
+      # code on hover, render docstrings as Google style (which is
+      # what most of the PETRA codebase already uses).
+      default_handler: python
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_root_toc_entry: true
+            members_order: source
+            separate_signature: true
+            line_length: 80
+            merge_init_into_class: true
+            show_if_no_docstring: false
+            filters: ["!^_"]
+
+markdown_extensions:
+  # Tables, admonitions, code-tab-groups — the standard set
+  # Material expects.
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/pcoz/formally-verified-learnable-process-intelligence
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/petra-nn/

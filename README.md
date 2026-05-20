@@ -3,6 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/petra-nn.svg)](https://pypi.org/project/petra-nn/)
 [![Python](https://img.shields.io/pypi/pyversions/petra-nn.svg)](https://pypi.org/project/petra-nn/)
 [![tests](https://github.com/pcoz/formally-verified-learnable-process-intelligence/actions/workflows/test.yml/badge.svg)](https://github.com/pcoz/formally-verified-learnable-process-intelligence/actions/workflows/test.yml)
+[![docs](https://github.com/pcoz/formally-verified-learnable-process-intelligence/actions/workflows/docs.yml/badge.svg)](https://pcoz.github.io/formally-verified-learnable-process-intelligence/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > **Not a developer?** Start with the
@@ -460,6 +461,12 @@ docs/
 ---
 
 ## Reading order
+
+The full set of long-form docs is also published at
+**[pcoz.github.io/formally-verified-learnable-process-intelligence](https://pcoz.github.io/formally-verified-learnable-process-intelligence/)**
+(MkDocs Material site, auto-built and deployed on every push to
+main, includes an auto-generated API reference pulled from the
+package's docstrings).
 
 1. This README — what PETRA is and what to do with it.
 2. [`docs/BUSINESS_ANALYST_GUIDE.md`](docs/BUSINESS_ANALYST_GUIDE.md)

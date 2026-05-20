@@ -7,6 +7,10 @@ __pycache__/
 build/
 dist/
 
+# MkDocs build output — published via the docs workflow, never
+# committed to the repo.
+site/
+
 # Test caches
 .pytest_cache/
 .coverage

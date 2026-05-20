@@ -56,6 +56,15 @@ dependencies = [
 dev = [
     "pytest>=7",
 ]
+# Docs build extras — used by .github/workflows/docs.yml to
+# build the MkDocs Material site. Install with:
+#     pip install petra-nn[docs]
+# (or, locally:  pip install -e ".[docs]"  and then  mkdocs serve)
+docs = [
+    "mkdocs>=1.5",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.24",
+]
 
 [project.urls]
 Homepage = "https://fleetingswallow.com"

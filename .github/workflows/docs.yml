@@ -1,0 +1,86 @@
+# Build the MkDocs Material documentation site and deploy it
+# to GitHub Pages.
+#
+# Trigger: every push to main (the docs always reflect the
+# latest tip) and on workflow_dispatch (so a re-deploy can be
+# triggered manually from the Actions UI without touching code).
+#
+# ---------------------------------------------------------------------------
+# ONE-TIME SETUP (browser, before the first deploy)
+# ---------------------------------------------------------------------------
+#
+# 1. In the repo's Settings → Pages, set the source to
+#    "**GitHub Actions**" (rather than "Deploy from a branch").
+#    GitHub then accepts deploys from this workflow's
+#    `actions/deploy-pages` step.
+#
+# 2. That's it — no environment / secrets / tokens needed.
+#
+# The published URL is:
+#   https://pcoz.github.io/formally-verified-learnable-process-intelligence/
+
+name: docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Grant the workflow the OIDC + pages-write permissions
+# `actions/deploy-pages` needs.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Don't queue concurrent deploys; cancel any in-flight run when a
+# newer push arrives. Documentation is always "the latest".
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build the site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+        with:
+          # Full history is needed for the "edit on GitHub" links
+          # and the changelog references to resolve correctly.
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install MkDocs and PETRA
+        run: |
+          python -m pip install --upgrade pip
+          # Install the package itself so mkdocstrings can import
+          # it to introspect docstrings (the API reference pages
+          # depend on this), plus the [docs] extra for MkDocs.
+          python -m pip install -e ".[docs]"
+
+      - name: Build the site
+        run: mkdocs build --strict --verbose
+
+      - name: Upload the built site as a Pages artefact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

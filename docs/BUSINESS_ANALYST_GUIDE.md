@@ -17,7 +17,7 @@ If you read this end to end, you will know:
 - **What PETRA learns from your logs** and what it produces — readable
   rules, anomaly scores, equivalence proofs, cost rankings.
 - **How the pieces compose end-to-end** into the unified analytical
-  pipeline the [README](../README.md) walkthrough describes.
+  pipeline the [README](https://github.com/pcoz/formally-verified-learnable-process-intelligence#readme) walkthrough describes.
 
 ---
 
@@ -220,7 +220,7 @@ a single number — which is enough for most business decision rules.
   *(p_application, >=, 1000)* — PETRA's compiler builds a learnable
   threshold initialised at 1,000. Training on your logs refines the
   threshold to whatever your actual decision-makers were using.
-  The [`credit_approval_coloured`](../examples/credit_approval_coloured/)
+  The [`credit_approval_coloured`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/credit_approval_coloured)
   scenario demonstrates this end-to-end: starting from 1,000, the
   threshold learns to a value in the observed decision band 900–1,500.
 - **Express routing logic the simple form can't.** When the rule is
@@ -252,7 +252,7 @@ tokens, not one."* The transition only becomes enabled when its
 input place has accumulated enough tokens to satisfy every input
 arc's weight.
 
-The [`batch_packaging`](../examples/batch_packaging/) scenario
+The [`batch_packaging`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/batch_packaging) scenario
 demonstrates this: a *bottle-to-crate* transition with input arc
 weight 6 waits for six bottles in the *bottles-pending* place
 before firing once and producing one *crate*.
@@ -279,7 +279,7 @@ transition T means *T can only fire when P is empty*. The
 inhibitor place is **not consumed** by the firing — it's purely a
 guard.
 
-The [`resource_lock`](../examples/resource_lock/) scenario
+The [`resource_lock`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/resource_lock) scenario
 demonstrates this with a two-client mutex: each client's
 *lock-acquire* transition has an inhibitor arc from the
 *lock-held* place. When client A holds the lock, client B's
@@ -315,7 +315,7 @@ steps later. While the transition is *in progress*, the work is
 invisible to other transitions — it can't be consumed because it
 hasn't been produced yet.
 
-The [`paint_shop`](../examples/paint_shop/) scenario demonstrates
+The [`paint_shop`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/paint_shop) scenario demonstrates
 this: the *cure* transition has duration 3. Parts that enter the
 cure step at time *n* don't appear at the *cured* place until
 time *n + 3*.
@@ -342,7 +342,7 @@ transition fires on the same input. The rate is a *prior*: training
 still refines it from data, so if your stated priority doesn't
 match the observed dispatch pattern, the model learns the truth.
 
-The [`priority_dispatch`](../examples/priority_dispatch/) scenario
+The [`priority_dispatch`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/priority_dispatch) scenario
 demonstrates this with three handlers at rates 3.0 / 1.0 / 0.5 —
 the rate-3 handler fires roughly three times as eagerly as the
 rate-1 handler under identical conditions.
@@ -371,12 +371,12 @@ prefixed by the pool name to avoid collisions). A message flow
 the sender's transition produces a token in the message place; the
 receiver's transition consumes that token.
 
-The [`distributed_consensus`](../examples/distributed_consensus/)
+The [`distributed_consensus`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/distributed_consensus)
 scenario demonstrates this with two-phase commit modelled as one
 coordinator pool and two cohort pools, composed through
 *prepare*, *vote*, and *commit* message places.
 
-The [`multi_agent_coordination`](../examples/multi_agent_coordination/)
+The [`multi_agent_coordination`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/multi_agent_coordination)
 scenario goes further: three pools (auctioneer + two bidders)
 exchanging six message types in a contract-net protocol.
 
@@ -951,7 +951,7 @@ The recipe:
    gives expected cost-to-completion for an average instance.
 4. *Rank.* The cheaper variant wins.
 
-The [`cost_ranked_refactoring`](../examples/cost_ranked_refactoring/)
+The [`cost_ranked_refactoring`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/cost_ranked_refactoring)
 scenario demonstrates this on two variants of a loan-approval
 process. Bisimulation proves they are equivalent; cost-ranking
 shows that Variant B costs roughly one-sixth of Variant A on the
@@ -997,7 +997,7 @@ in directly.
 ## 21. Putting it all together: the end-to-end pipeline
 
 The pieces above compose into a single analytical pipeline. The
-[README's bank-loan walkthrough](../README.md#using-the-whole-toolchain-together)
+[README's bank-loan walkthrough](https://github.com/pcoz/formally-verified-learnable-process-intelligence#using-the-whole-toolchain-together)
 shows this concretely: two regional offices, two execution logs,
 no documented "correct" process, and the chain of tools needed to
 unify them.
@@ -1040,16 +1040,16 @@ artefacts.
 ## Where to go next
 
 - *I want to see a concrete scenario in my domain.* Browse
-  [`examples/`](../examples/) — each scenario has its own README
+  [`examples/`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples) — each scenario has its own README
   explaining what it demonstrates and why.
 - *I want the technical API reference.* See [`DEV_MANUAL.md`](DEV_MANUAL.md).
 - *I want the framing and the long-form roadmap.* See [`ROADMAP.md`](ROADMAP.md).
 - *I want to read the source.* Start at
-  [`petri_net_nn/petri_net.py`](../petri_net_nn/petri_net.py) — the
+  [`petri_net_nn/petri_net.py`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/petri_net_nn/petri_net.py) — the
   data model — then
-  [`petri_net_nn/compiler.py`](../petri_net_nn/compiler.py) for the
+  [`petri_net_nn/compiler.py`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/petri_net_nn/compiler.py) for the
   compilation step, then
-  [`petri_net_nn/bisimulation.py`](../petri_net_nn/bisimulation.py)
+  [`petri_net_nn/bisimulation.py`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/petri_net_nn/bisimulation.py)
   for the equivalence checker.
 
 ---
