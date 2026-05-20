@@ -1,0 +1,73 @@
+# PEP 517 / 518 / 621 build configuration for PETRA.
+#
+# Distribution name on PyPI is "petra"; the importable Python package
+# is "petri_net_nn" (matches the directory layout). Version is
+# read dynamically from petri_net_nn.__version__ so there is one
+# source of truth.
+
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "petra"
+dynamic = ["version"]
+description = "Petri-Net Trained Architecture — formally-verified learnable process intelligence"
+readme = "README.md"
+authors = [
+    { name = "Edward Chalk", email = "edward@fleetingswallow.com" },
+]
+license = "MIT"
+requires-python = ">=3.11"
+keywords = [
+    "petri-net",
+    "process-mining",
+    "bpmn",
+    "neural-network",
+    "interpretable-ml",
+    "formal-verification",
+    "bisimulation",
+    "anomaly-detection",
+    "workflow",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    # torch supplies tensors, autograd, and nn.Module — the
+    # entire compiler / training / sensitivity machinery is built
+    # on it. 2.0 is the modern baseline; nothing in PETRA needs
+    # newer than that.
+    "torch>=2.0",
+]
+
+[project.optional-dependencies]
+# Development extras — install with: pip install petra[dev]
+dev = [
+    "pytest>=7",
+]
+
+[project.urls]
+Homepage = "https://fleetingswallow.com"
+Repository = "https://github.com/pcoz/formally-verified-learnable-process-intelligence"
+Documentation = "https://github.com/pcoz/formally-verified-learnable-process-intelligence#readme"
+Changelog = "https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/CHANGELOG.md"
+
+[tool.setuptools]
+# Explicit package listing — keeps the wheel from accidentally
+# vacuuming up examples/, docs/, tests/, session_notes/ etc.
+packages = ["petri_net_nn"]
+include-package-data = true
+
+[tool.setuptools.dynamic]
+# Single source of truth: petri_net_nn/__init__.py declares
+# __version__ and setuptools reads it from there at build time.
+version = { attr = "petri_net_nn.__version__" }

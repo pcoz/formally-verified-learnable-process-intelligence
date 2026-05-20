@@ -1,3 +1,8 @@
+# Version is the single source of truth for the package — read by
+# setuptools at build time (see pyproject.toml's tool.setuptools.dynamic
+# block) and exposed to users at runtime via petri_net_nn.__version__.
+__version__ = "0.1.0"
+
 from petri_net_nn.adapter import (
     ScenarioContext,
     TrainingConfig,
@@ -105,6 +110,7 @@ from petri_net_nn.traces import (
 from petri_net_nn.xes import XESEvent, XESTrace, parse_xes
 
 __all__ = [
+    "__version__",
     "AF",
     "AG",
     "AU",

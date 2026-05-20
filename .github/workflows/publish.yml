@@ -1,0 +1,100 @@
+# Publish PETRA to PyPI when a semver tag (e.g. v0.1.0) is pushed.
+#
+# This workflow uses PyPI's *trusted publishing* (PEP 740 / OIDC),
+# which means **no API token secret** is stored in this repo. The
+# trust relationship is configured on PyPI's side — see the
+# one-time setup steps below.
+#
+# ---------------------------------------------------------------------------
+# ONE-TIME SETUP (do this once, in a browser, before the first release)
+# ---------------------------------------------------------------------------
+#
+# 1. Log in to PyPI as the account that owns
+#    https://pypi.org/project/timeseries-formula-finder/ (same
+#    account; same maintainer details).
+#
+# 2. Go to Account Settings → Publishing → "Add a new pending
+#    publisher" (or, after the first release, the same page for
+#    the existing project).
+#
+# 3. Fill in:
+#       PyPI project name:    petra
+#       Owner:                pcoz
+#       Repository name:      formally-verified-learnable-process-intelligence
+#       Workflow filename:    publish.yml
+#       Environment name:     pypi
+#
+# 4. Save. PyPI will now accept publishes from this workflow,
+#    running under this repo's `pypi` environment, with no API
+#    token needed.
+#
+# 5. In this GitHub repo's Settings → Environments, create an
+#    environment named `pypi` (no protection rules required for
+#    a single-maintainer project; add a "required reviewer" rule
+#    if you want a manual gate before publishing).
+#
+# ---------------------------------------------------------------------------
+# RELEASE PROCEDURE
+# ---------------------------------------------------------------------------
+#
+# 1. Bump petri_net_nn.__version__ in petri_net_nn/__init__.py.
+# 2. Add a CHANGELOG.md entry for the new version.
+# 3. Commit both.
+# 4. Tag and push:
+#        git tag v0.1.0
+#        git push origin v0.1.0
+# 5. This workflow runs, builds sdist + wheel, and publishes to
+#    PyPI under the trusted-publisher relationship configured
+#    above.
+
+name: publish
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the build tool
+        run: python -m pip install --upgrade build
+
+      - name: Build the distribution artefacts
+        run: python -m build
+
+      - name: Upload the artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      # The id-token write permission is what lets the workflow
+      # mint a short-lived OIDC token that PyPI trusts. Without
+      # it, trusted publishing won't work.
+      id-token: write
+    steps:
+      - name: Download the artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

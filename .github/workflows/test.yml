@@ -1,0 +1,41 @@
+# Run the full pytest suite on every push to main and on every
+# pull request. Matrix over the supported Python versions
+# (matches pyproject.toml's requires-python).
+#
+# The suite is heavy (~4-8 minutes on CPU because of the
+# training-based tests), but worth it on the integration branch.
+
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install PETRA and dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Editable install so the test paths resolve cleanly.
+          # The [dev] extra brings in pytest.
+          python -m pip install -e ".[dev]"
+
+      - name: Run the full test suite
+        run: python -m pytest -q

@@ -848,10 +848,25 @@ everything between "the library works on a developer's laptop" and
 "a non-Python team can plug PETRA into their pipeline." No UI work —
 that's the consuming application's call.
 
-- [ ] **PyPI packaging.** `pip install petra`, proper versioning,
-  changelog.
-- [ ] **CI.** GitHub Actions running the suite on every push, across
-  the Python versions worth supporting.
+- [x] **PyPI packaging.** `pyproject.toml` with PEP 621 metadata
+  (build backend `setuptools>=77`, distribution name `petra`,
+  importable package `petri_net_nn`, dynamic version read from
+  `petri_net_nn.__version__`, Python >=3.11, torch>=2.0, optional
+  `[dev]` extra for pytest). `CHANGELOG.md` follows Keep a
+  Changelog; the v0.1.0 entry captures the full feature surface
+  shipped through Phases 1–13. PyPI metadata matches the user's
+  existing `timeseries-formula-finder` package (same author,
+  same `fleetingswallow.com` homepage). The first release is
+  scaffolded but not pushed; the user does the one-time PyPI
+  trusted-publisher setup and tags `v0.1.0` to fire the publish
+  workflow.
+- [x] **CI.** `.github/workflows/test.yml` runs the full pytest
+  suite on every push to `main` and every pull request, matrix
+  over Python 3.11 / 3.12. `.github/workflows/publish.yml`
+  builds sdist + wheel and publishes to PyPI via *trusted
+  publishing* (OIDC, no API token stored in the repo) when a
+  `v*.*.*` git tag is pushed. The publish workflow file
+  documents the one-time setup steps inline.
 - [ ] **Auto-built documentation site.** Sphinx or MkDocs pulling
   from docstrings plus the manual, published on GitHub Pages.
 - [ ] **ONNX export.** Trained `PetriNetModule` shipped to anywhere

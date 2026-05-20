@@ -10,7 +10,15 @@ extension point is added.
 
 ## 1. Quick start
 
-The fastest path: write a TOML config and use the adapter.
+Install from PyPI (Python 3.11+):
+
+```
+pip install petra
+```
+
+The distribution name is `petra`; the import name is
+`petri_net_nn` (matches the source layout). The fastest path:
+write a TOML config and use the adapter.
 
 ```python
 from petri_net_nn import load_scenario

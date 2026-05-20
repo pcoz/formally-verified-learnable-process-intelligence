@@ -1,5 +1,10 @@
 # PETRA
 
+[![PyPI](https://img.shields.io/pypi/v/petra.svg)](https://pypi.org/project/petra/)
+[![Python](https://img.shields.io/pypi/pyversions/petra.svg)](https://pypi.org/project/petra/)
+[![tests](https://github.com/pcoz/formally-verified-learnable-process-intelligence/actions/workflows/test.yml/badge.svg)](https://github.com/pcoz/formally-verified-learnable-process-intelligence/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 > **Not a developer?** Start with the
 > [**Business Analyst Guide**](docs/BUSINESS_ANALYST_GUIDE.md) —
 > a no-code, no-maths walkthrough of every concept in this
@@ -400,6 +405,12 @@ the whole set with `python -m pytest tests/scenarios/`.
 
 ## Quick start
 
+```
+pip install petra
+```
+
+Requires Python 3.11+ and brings `torch` in as a dependency.
+
 ```python
 from petri_net_nn import load_scenario
 
@@ -411,9 +422,10 @@ rules = ctx.extract_rules(module)
 print(rules["xor"][0].description())
 ```
 
-For the framework-level API (build a `PetriNet` by hand, compile,
-train, extract rules, score anomalies), see
-[`docs/DEV_MANUAL.md`](docs/DEV_MANUAL.md).
+The PyPI distribution name is `petra`; the importable Python
+package is `petri_net_nn`. For the framework-level API (build a
+`PetriNet` by hand, compile, train, extract rules, score
+anomalies), see [`docs/DEV_MANUAL.md`](docs/DEV_MANUAL.md).
 
 ---
 
