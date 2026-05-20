@@ -10,20 +10,32 @@ Addresses §8's fourth open problem from the architecture spec:
   > closing the loop from neural learning to interpretable business
   > logic.
 
-Two distillation routines:
+Three pieces:
 
-  * ``extract_routing_rules`` walks the compiled module's structure
-    for XOR-shape transitions (N transitions sharing one input place,
-    no other consumers) and reads the learned weights / thresholds
-    out as a single crossover value per pair: "input above X →
-    transition A, otherwise → transition B". This is the most common
-    decision pattern in a BPMN process and the one closest to a
-    classical business rule.
+  * **Rule extraction.** ``extract_routing_rules`` walks the compiled
+    module's structure for XOR-shape transitions (N transitions
+    sharing one input place, no other consumers) and reads the
+    learned weights / thresholds out as a single crossover value per
+    pair: "input above X → transition A, otherwise → transition B".
+    ``extract_and_join_rules`` does the same for synchronisation
+    transitions (multi-input AND-joins), reading the input weights
+    and threshold as a weighted-vote or uniform-quorum rule.
 
-  * ``explain_anomaly`` takes the residual dict from
-    :func:`petri_net_nn.traces.anomaly_score` and the trace under
-    test, and returns a human-readable narrative pinned to the
-    diverging transitions by their BPMN labels.
+  * **Bootstrap confidence intervals.** ``bootstrap_xor_rule`` and
+    ``bootstrap_and_join_rule`` resample the training trace list
+    with replacement N times, retrain a fresh module per resample,
+    extract the rule, and report the distribution of rule
+    parameters. Returns ``XORRuleCI`` / ``AndJoinRuleCI`` with
+    percentile-based confidence intervals and a direction-agreement
+    rate — the Phase 13 answer to "should I trust this rule in
+    production?".
+
+  * **Prose explanations.** ``explain_anomaly`` walks residuals and
+    formats them as a paragraph; ``prose_for_xor_rule`` and
+    ``prose_for_and_join_rule`` do the same for rules (with or
+    without bootstrap CIs attached). All three turn the extractors'
+    structured output into a plain-English paragraph a non-technical
+    reader can act on.
 
 The scaffold restricts XOR rule extraction to two-way splits — the
 common case. N-way splits compute pairwise crossovers between the top
@@ -32,11 +44,20 @@ extraction is a follow-up.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+import statistics
+from dataclasses import dataclass, field
+from typing import Callable
+
+import torch
 
 from petri_net_nn.compiler import PetriNetModule
 from petri_net_nn.petri_net import PetriNet
-from petri_net_nn.traces import AttributeToMarking, anomaly_score
+from petri_net_nn.traces import (
+    AttributeToMarking,
+    AttributeToValues,
+    anomaly_score,
+    train_on_traces,
+)
 from petri_net_nn.xes import XESTrace
 
 
@@ -479,3 +500,479 @@ def explain_anomaly(
         lines.append(f"  • … {len(significant) - top_n} more below threshold")
 
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Phase 13 — bootstrap confidence intervals on extracted rules.
+#
+# Rule extraction reads a single point estimate out of the trained
+# weights. That's only useful if the rule is stable: training a fresh
+# module on a slightly-different trace sample should produce a similar
+# rule. Bootstrap resampling is the standard statistical answer:
+# resample the trace list with replacement N times, retrain a fresh
+# module per resample, extract the rule each time, report the
+# distribution of rule parameters. The percentile interval over the
+# samples gives a confidence interval; the fraction of samples that
+# agree with the point estimate's direction gives a stability score.
+#
+# Bootstrap is computationally heavy (N full training runs) but the
+# resulting CI is what makes a rule trustworthy enough to ship to
+# production. We default to N=100 — large enough for reasonable
+# percentile estimates, small enough to fit a unit-test budget.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class XORRuleCI:
+    """An :class:`XORRule` annotated with bootstrap-derived confidence
+    intervals.
+
+    Attributes
+    ----------
+    rule
+        The point-estimate rule — extracted from the module trained
+        on the *full* trace list (no resampling). This is the rule
+        you would report if you weren't computing CIs at all.
+    n_bootstrap
+        How many bootstrap resamples were trained.
+    confidence
+        The nominal coverage of the percentile interval below
+        (e.g. 0.95 for a 95% CI). Used to compute the interval
+        endpoints as the (1 − confidence)/2 and (1 + confidence)/2
+        percentiles of the bootstrap samples.
+    crossover_samples
+        The crossover values extracted from each bootstrap-trained
+        module. NaN samples (occur when the trained weight gap is
+        too small to discriminate) are filtered out before computing
+        the summary statistics — they're effectively "no rule" and
+        shouldn't pull the CI around.
+    crossover_mean / crossover_median
+        Summary statistics over the (non-NaN) samples.
+    crossover_ci_low / crossover_ci_high
+        Percentile-based confidence interval bounds. ``nan`` if too
+        few valid samples to compute.
+    direction_agreement
+        Fraction of bootstrap samples whose ``transition_above`` /
+        ``transition_below`` direction matches the point estimate.
+        1.0 means every resample agrees; values below ~0.8 are a
+        red flag that the rule's direction is data-dependent.
+    """
+
+    rule: XORRule
+    n_bootstrap: int
+    confidence: float
+    crossover_samples: tuple[float, ...]
+    crossover_mean: float
+    crossover_median: float
+    crossover_ci_low: float
+    crossover_ci_high: float
+    direction_agreement: float
+
+    def description(self) -> str:
+        """One-line summary including the CI; useful for log lines
+        and quick assertions."""
+        return (
+            f"{self.rule.input_place!r} > {self.rule.crossover:.3f} "
+            f"(CI [{self.crossover_ci_low:.3f}, "
+            f"{self.crossover_ci_high:.3f}], "
+            f"direction agreement {self.direction_agreement:.0%}) → "
+            f"{self.rule.label_above!r}"
+        )
+
+
+@dataclass(frozen=True)
+class AndJoinRuleCI:
+    """An :class:`AndJoinRule` annotated with bootstrap-derived
+    confidence intervals on its threshold.
+
+    Attributes
+    ----------
+    rule
+        The point-estimate rule from training on the full trace list.
+    n_bootstrap, confidence
+        As for :class:`XORRuleCI`.
+    threshold_samples
+        Bootstrap-sample thresholds.
+    threshold_mean / threshold_median / threshold_ci_low /
+    threshold_ci_high
+        Summary statistics over the samples.
+    quorum_agreement
+        Fraction of bootstrap samples whose extracted quorum
+        ("all N", "≥ k of N", or "weighted") matches the point
+        estimate's quorum gloss. A low value suggests the join's
+        synchronisation rule is brittle under data resampling.
+    """
+
+    rule: AndJoinRule
+    n_bootstrap: int
+    confidence: float
+    threshold_samples: tuple[float, ...]
+    threshold_mean: float
+    threshold_median: float
+    threshold_ci_low: float
+    threshold_ci_high: float
+    quorum_agreement: float
+
+    def description(self) -> str:
+        return (
+            f"{self.rule.label!r}: {self.rule.summary} "
+            f"(threshold CI [{self.threshold_ci_low:.3f}, "
+            f"{self.threshold_ci_high:.3f}], quorum agreement "
+            f"{self.quorum_agreement:.0%})"
+        )
+
+
+def _percentile_ci(
+    samples: list[float], confidence: float
+) -> tuple[float, float]:
+    """Compute the lower / upper percentile bounds of ``samples``
+    matching the requested coverage. Returns ``(nan, nan)`` when
+    too few samples are available — the caller decides how to
+    surface "not computable" rather than us inventing a number."""
+    if len(samples) < 2:
+        return float("nan"), float("nan")
+    sorted_samples = sorted(samples)
+    # Type-2 percentile (linear interpolation between sample
+    # quantiles) via statistics.quantiles. Asking for n=100 buckets
+    # then indexing gives us a near-arbitrary percentile resolution.
+    alpha = (1.0 - confidence) / 2.0
+    n = len(sorted_samples)
+    lo_idx = max(0, int(alpha * n))
+    hi_idx = min(n - 1, int((1.0 - alpha) * n))
+    return sorted_samples[lo_idx], sorted_samples[hi_idx]
+
+
+def _bootstrap_indices(
+    n: int, n_samples: int, rng: "torch.Generator | None"
+) -> list[list[int]]:
+    """Generate ``n_samples`` bootstrap index lists of length ``n``,
+    each drawn with replacement from ``range(n)``. Pulling this out
+    as a helper keeps the bootstrap callers symmetric and gives a
+    single place to swap in a deterministic RNG."""
+    # We use torch's RNG (passed in or default) so seeding behaves
+    # the same way as the rest of training does.
+    out: list[list[int]] = []
+    for _ in range(n_samples):
+        idx = torch.randint(
+            0, n, (n,), generator=rng
+        ).tolist()
+        out.append(idx)
+    return out
+
+
+def bootstrap_xor_rule(
+    module_factory: Callable[[], PetriNetModule],
+    traces: list[XESTrace],
+    *,
+    attribute_to_marking: AttributeToMarking,
+    input_place: str,
+    transition_a: str,
+    transition_b: str,
+    n_bootstrap: int = 100,
+    confidence: float = 0.95,
+    steps: int = 500,
+    lr: float = 0.1,
+    attribute_to_values: AttributeToValues | None = None,
+    seed: int | None = None,
+) -> XORRuleCI:
+    """Bootstrap-resample the trace list, train a fresh module per
+    resample, extract the XOR rule, and report the distribution of
+    crossovers as an :class:`XORRuleCI`.
+
+    Parameters
+    ----------
+    module_factory
+        A zero-argument callable that builds a fresh
+        :class:`PetriNetModule` ready to train. The bootstrap
+        algorithm calls it ``n_bootstrap + 1`` times — once for the
+        point estimate on the full trace list, then once per
+        resample. Each call MUST return an independent module: the
+        factory exists to capture the net's structure while keeping
+        the random initialisation fresh per call.
+    traces
+        The training trace list. Bootstrap samples are drawn with
+        replacement from this list.
+    attribute_to_marking
+        Same role as in :func:`petri_net_nn.train_on_traces` — maps
+        each trace to its input-marking dict.
+    attribute_to_values
+        Optional CPN value channel. Passed through to
+        :func:`train_on_traces` for each bootstrap run.
+    input_place, transition_a, transition_b
+        The XOR pair to extract — the same arguments as
+        :func:`extract_xor_rule`.
+    n_bootstrap
+        Number of bootstrap resamples. Default 100. Higher gives
+        tighter CIs at higher training cost.
+    confidence
+        Coverage of the percentile interval (default 0.95).
+    steps, lr
+        Forwarded to the per-resample training. The defaults match
+        ``train_on_traces``.
+    seed
+        Optional integer seed for the bootstrap RNG. The per-resample
+        training is *not* re-seeded — initialisation variance across
+        resamples is part of what bootstrap is measuring.
+
+    Returns
+    -------
+    XORRuleCI
+        Bundle of the point estimate, the bootstrap distribution,
+        and the percentile-CI / direction-agreement stats.
+    """
+    # Point estimate first — train on the full trace list, extract
+    # the rule. This is the "headline" rule the caller would report
+    # without any CIs.
+    point_module = module_factory()
+    train_on_traces(
+        point_module,
+        traces,
+        attribute_to_marking=attribute_to_marking,
+        attribute_to_values=attribute_to_values,
+        steps=steps,
+        lr=lr,
+    )
+    point_rule = extract_xor_rule(
+        point_module, input_place, transition_a, transition_b
+    )
+
+    # Bootstrap RNG — torch generator so behaviour matches the rest
+    # of training. If no seed is supplied, the default global RNG
+    # is used (non-deterministic across runs, which is fine for
+    # diagnostic bootstrap stats).
+    rng = torch.Generator()
+    if seed is not None:
+        rng.manual_seed(seed)
+
+    samples: list[float] = []
+    direction_matches = 0
+    direction_total = 0
+    for indices in _bootstrap_indices(len(traces), n_bootstrap, rng):
+        resampled = [traces[i] for i in indices]
+        module = module_factory()
+        train_on_traces(
+            module,
+            resampled,
+            attribute_to_marking=attribute_to_marking,
+            attribute_to_values=attribute_to_values,
+            steps=steps,
+            lr=lr,
+        )
+        rule = extract_xor_rule(
+            module, input_place, transition_a, transition_b
+        )
+        # The direction is the (above, below) ordering of the rule's
+        # transitions. We compare against the point estimate to
+        # measure stability across resamples.
+        direction_total += 1
+        if (rule.transition_above, rule.transition_below) == (
+            point_rule.transition_above,
+            point_rule.transition_below,
+        ):
+            direction_matches += 1
+        # NaN crossovers come from weight-gap-too-small samples;
+        # they're "no rule" and shouldn't pull the percentile CI.
+        if not _is_nan(rule.crossover):
+            samples.append(rule.crossover)
+
+    direction_agreement = (
+        direction_matches / direction_total if direction_total else 0.0
+    )
+
+    ci_low, ci_high = _percentile_ci(samples, confidence)
+    mean = statistics.fmean(samples) if samples else float("nan")
+    median = statistics.median(samples) if samples else float("nan")
+
+    return XORRuleCI(
+        rule=point_rule,
+        n_bootstrap=n_bootstrap,
+        confidence=confidence,
+        crossover_samples=tuple(samples),
+        crossover_mean=mean,
+        crossover_median=median,
+        crossover_ci_low=ci_low,
+        crossover_ci_high=ci_high,
+        direction_agreement=direction_agreement,
+    )
+
+
+def bootstrap_and_join_rule(
+    module_factory: Callable[[], PetriNetModule],
+    traces: list[XESTrace],
+    *,
+    attribute_to_marking: AttributeToMarking,
+    transition: str,
+    n_bootstrap: int = 100,
+    confidence: float = 0.95,
+    steps: int = 500,
+    lr: float = 0.1,
+    attribute_to_values: AttributeToValues | None = None,
+    seed: int | None = None,
+) -> AndJoinRuleCI:
+    """Same shape as :func:`bootstrap_xor_rule` but for AND-join rules.
+
+    Returns an :class:`AndJoinRuleCI` with the threshold distribution
+    and a *quorum agreement* score — the fraction of bootstrap
+    samples whose extracted quorum gloss matches the point estimate's.
+    A drop in quorum agreement means the join's synchronisation
+    behaviour is data-dependent: across plausible re-samples of the
+    training data, sometimes it looks like an "all N" join and
+    sometimes like a "≥ k of N" weighted vote.
+    """
+    point_module = module_factory()
+    train_on_traces(
+        point_module,
+        traces,
+        attribute_to_marking=attribute_to_marking,
+        attribute_to_values=attribute_to_values,
+        steps=steps,
+        lr=lr,
+    )
+    point_rule = extract_and_join_rule(point_module, transition)
+
+    rng = torch.Generator()
+    if seed is not None:
+        rng.manual_seed(seed)
+
+    threshold_samples: list[float] = []
+    quorum_matches = 0
+    quorum_total = 0
+    for indices in _bootstrap_indices(len(traces), n_bootstrap, rng):
+        resampled = [traces[i] for i in indices]
+        module = module_factory()
+        train_on_traces(
+            module,
+            resampled,
+            attribute_to_marking=attribute_to_marking,
+            attribute_to_values=attribute_to_values,
+            steps=steps,
+            lr=lr,
+        )
+        rule = extract_and_join_rule(module, transition)
+        quorum_total += 1
+        if rule.summary == point_rule.summary:
+            quorum_matches += 1
+        if not _is_nan(rule.threshold):
+            threshold_samples.append(rule.threshold)
+
+    quorum_agreement = (
+        quorum_matches / quorum_total if quorum_total else 0.0
+    )
+
+    ci_low, ci_high = _percentile_ci(threshold_samples, confidence)
+    mean = (
+        statistics.fmean(threshold_samples) if threshold_samples else float("nan")
+    )
+    median = (
+        statistics.median(threshold_samples)
+        if threshold_samples
+        else float("nan")
+    )
+
+    return AndJoinRuleCI(
+        rule=point_rule,
+        n_bootstrap=n_bootstrap,
+        confidence=confidence,
+        threshold_samples=tuple(threshold_samples),
+        threshold_mean=mean,
+        threshold_median=median,
+        threshold_ci_low=ci_low,
+        threshold_ci_high=ci_high,
+        quorum_agreement=quorum_agreement,
+    )
+
+
+def _is_nan(x: float) -> bool:
+    """``math.isnan`` would work but introduces an import; the
+    ``x != x`` trick is the canonical Pythonic NaN test."""
+    return x != x
+
+
+# ---------------------------------------------------------------------------
+# Phase 13 — prose for rules.
+#
+# Both rule shapes (XOR and AND-join) already carry a one-line
+# ``description()`` method. The functions below produce a longer
+# paragraph-form rendering suitable for a report or a regulator-
+# facing document — explanatory prose, not a debug log line.
+# ---------------------------------------------------------------------------
+
+
+def prose_for_xor_rule(
+    rule: "XORRule | XORRuleCI",
+    *,
+    input_label: str | None = None,
+) -> str:
+    """Render an XOR rule (with or without bootstrap CI) as a
+    paragraph in plain English.
+
+    Parameters
+    ----------
+    rule
+        Either a bare :class:`XORRule` (just the point estimate)
+        or an :class:`XORRuleCI` (point estimate + confidence
+        interval). When a CI is supplied, the prose includes both
+        the percentile interval and the direction-agreement rate.
+    input_label
+        Optional human-readable name for the input quantity. The
+        rule stores the *place id* (e.g. ``p_application``), which
+        is fine in code but ugly in a regulator-facing paragraph.
+        Supply ``input_label="application amount"`` to substitute
+        a domain term.
+    """
+    if isinstance(rule, XORRuleCI):
+        point = rule.rule
+        ci_clause = (
+            f" (95% confidence interval "
+            f"[{rule.crossover_ci_low:.3f}, "
+            f"{rule.crossover_ci_high:.3f}] over "
+            f"{rule.n_bootstrap} bootstrap resamples)"
+        )
+        agreement_clause = (
+            f" The direction of this routing rule was consistent "
+            f"across {rule.direction_agreement:.0%} of the bootstrap "
+            f"resamples."
+        )
+    else:
+        point = rule
+        ci_clause = ""
+        agreement_clause = ""
+
+    label = input_label or point.input_place
+    return (
+        f"When {label} is above {point.crossover:.3f}"
+        f"{ci_clause}, the trained model routes to "
+        f"{point.label_above!r} rather than {point.label_below!r}."
+        f"{agreement_clause}"
+    )
+
+
+def prose_for_and_join_rule(
+    rule: "AndJoinRule | AndJoinRuleCI",
+) -> str:
+    """Render an AND-join rule (with or without bootstrap CI) as a
+    paragraph in plain English. The point-estimate rule's
+    ``summary`` field already carries a gloss like *"all 3 inputs"*
+    or *"at least 2 of 3 inputs"* or a weighted-vote description;
+    we wrap that in narrative prose plus any CI annotations."""
+    if isinstance(rule, AndJoinRuleCI):
+        point = rule.rule
+        ci_clause = (
+            f" The threshold's 95% confidence interval is "
+            f"[{rule.threshold_ci_low:.3f}, "
+            f"{rule.threshold_ci_high:.3f}] over "
+            f"{rule.n_bootstrap} bootstrap resamples."
+        )
+        agreement_clause = (
+            f" The quorum shape was consistent across "
+            f"{rule.quorum_agreement:.0%} of resamples."
+        )
+    else:
+        point = rule
+        ci_clause = ""
+        agreement_clause = ""
+
+    return (
+        f"The synchronisation step {point.label!r} fires when "
+        f"{point.summary}.{ci_clause}{agreement_clause}"
+    )

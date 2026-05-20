@@ -761,17 +761,37 @@ need more.
 - [ ] **Counterfactual explanations.** "The model approved this
   loan; what would the applicant have needed to change to be
   declined?" Useful for compliance and customer-facing decisions.
-- [ ] **Confidence intervals on extracted rules.** Bootstrap the
-  training and report the distribution of crossover thresholds.
-  Required before anyone should trust a rule in production.
+- [x] **Confidence intervals on extracted rules.** Bootstrap the
+  training and report the distribution of crossover thresholds /
+  AND-join quorum thresholds. `bootstrap_xor_rule(factory, traces,
+  ...)` and `bootstrap_and_join_rule(factory, traces, ...)` resample
+  the trace list with replacement N times (default 100), train a
+  fresh module on each resample via ``train_on_traces``, extract
+  the rule, and return an ``XORRuleCI`` / ``AndJoinRuleCI`` carrying
+  the point estimate, the bootstrap distribution, a percentile-based
+  confidence interval (default 95%), and a direction-agreement /
+  quorum-agreement rate measuring how often the bootstrap rule
+  matched the point estimate's structural form. Seeded RNG for
+  reproducibility. The combination "*the crossover is 0.486 ±
+  0.03 with 95% confidence over 100 resamples; direction agrees
+  in 98% of resamples*" is the production-trust threshold any
+  regulator would ask for.
 - [ ] **Sensitivity analysis.** Which input matters most? Which
   transition is the model leaning on hardest?
 - [ ] **Cross-variant comparison reports.** "These two variants
   agree on 87% of the input domain; here's the band where they
   diverge." Pairs naturally with the cost-ranked refactoring
   scenario.
-- [ ] **Prose explanations.** Turn an `XORRule` or an anomaly
-  residual dict into a paragraph a non-technical reader can act on.
+- [x] **Prose explanations.** `prose_for_xor_rule(rule)` and
+  `prose_for_and_join_rule(rule)` turn the structured rule objects
+  into paragraph form. Both accept either the bare rule
+  (point estimate only) or the corresponding CI variant — in the
+  latter case the prose includes the bracket numbers and the
+  direction-agreement / quorum-agreement percentage. An optional
+  ``input_label`` substitutes a domain term for the raw place id
+  (so a regulator-facing document can read *"application amount"*
+  instead of *"p_application"*). Plain-text output, no
+  dependencies, ready to drop into a report.
 
 ## Phase 14 — Making PETRA usable in production *(later)*
 

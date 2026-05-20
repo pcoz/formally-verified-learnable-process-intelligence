@@ -490,6 +490,46 @@ parameter has a name from your domain, and the rule extractor
 turns the parameters back into the prose form that an underwriter,
 compliance officer, or process owner can read.
 
+### Confidence intervals on the extracted rule
+
+A point-estimate rule (*"the threshold is 0.486"*) is fine for an
+internal analyst's note, but a regulator-facing claim needs to
+know **how stable the rule is** under reasonable variations in the
+data. PETRA computes this via **bootstrap resampling**:
+
+1. Resample the trace list *with replacement* N times (default
+   100). Each resample is a plausible alternative dataset of the
+   same size.
+2. Train a fresh model on each resample. Extract the rule.
+3. Report the **distribution** of the rule parameter (the
+   crossover threshold for an XOR rule, the quorum threshold for
+   an AND-join). The 2.5 / 97.5 percentiles give a 95% confidence
+   interval.
+4. Report the **direction agreement** — what fraction of the
+   bootstrap samples produced a rule pointing the same way as the
+   point estimate. If the routing direction flips on 30% of
+   resamples, the rule is not stable enough to deploy.
+
+A typical CI-augmented rule looks like:
+
+> *When* application amount *is above £1,000 (95% confidence
+> interval [£950, £1,070] over 100 bootstrap resamples), the
+> trained model routes to* Credit Review *rather than* Fast
+> Track. *The direction was consistent across* 98% *of the
+> resamples.*
+
+That's the form a regulator, an audit team, or a model-risk
+committee can sign off on.
+
+### Plain-English prose
+
+Both the point estimate and the CI-augmented form can be
+rendered as paragraph-form **prose** for inclusion in a report
+or model-risk document. The prose helpers also let you
+substitute a domain term (*"application amount"*) for the raw
+internal place id (*"p_application"*) — important for
+documents that go outside the engineering team.
+
 ---
 
 ## 14. Spotting traces that don't fit

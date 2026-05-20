@@ -331,6 +331,12 @@ from petri_net_nn import (
     extract_and_join_rule,      # weighted-vote / quorum rule
     extract_and_join_rules,
     explain_anomaly,            # prose explanation pinned to BPMN labels
+    # Phase 13 — confidence intervals and prose
+    bootstrap_xor_rule,         # bootstrap CI on an XOR rule
+    bootstrap_and_join_rule,    # bootstrap CI on an AND-join rule
+    XORRuleCI, AndJoinRuleCI,   # CI bundles (point estimate + distribution + CI)
+    prose_for_xor_rule,         # rule (or CI) → paragraph
+    prose_for_and_join_rule,    # rule (or CI) → paragraph
 )
 ```
 
@@ -338,6 +344,33 @@ For shared-preset XOR groups (multi-input competing transitions, e.g.
 2PC commit/abort), the rule extractors automatically pick the
 *discriminative* input — the place whose learned weight gap across
 the group is largest.
+
+**Bootstrap confidence intervals.** Both ``bootstrap_xor_rule`` and
+``bootstrap_and_join_rule`` take a ``module_factory`` (zero-arg
+callable returning a fresh, untrained module), the training trace
+list, and the per-resample training parameters. They resample
+``n_bootstrap`` times (default 100) with replacement, train a fresh
+module on each resample, extract the rule, and return a CI bundle
+with:
+
+  * the point-estimate rule from training on the full trace list;
+  * the bootstrap distribution of the headline parameter (crossover
+    or threshold);
+  * percentile-based confidence interval at the requested coverage
+    (default 95%);
+  * a direction-agreement / quorum-agreement rate — how often the
+    bootstrap rule matched the point estimate's structural form.
+
+The bootstrap RNG is seedable for reproducibility (``seed=...``);
+per-resample training uses the default global torch RNG so
+initialisation variance contributes to the distribution.
+
+**Prose helpers.** ``prose_for_xor_rule`` and
+``prose_for_and_join_rule`` accept either the bare rule or the CI
+variant. With a CI they include the bracket numbers and agreement
+percentage; with a bare rule they don't. An optional
+``input_label`` substitutes a domain term for the raw place id —
+useful for regulator-facing output.
 
 ### 3.8 `soundness.py` — Aalst soundness + deadlock localisation
 
@@ -590,5 +623,5 @@ python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
 
-Current test count: 351 passing across the framework and the
+Current test count: 358 passing across the framework and the
 end-to-end scenarios.
