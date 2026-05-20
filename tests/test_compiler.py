@@ -598,3 +598,131 @@ def test_approval_process_trains_to_predict_completion():
 
     with torch.no_grad():
         assert module()["p_f_done"].item() > 0.7
+
+
+# ---------------------------------------------------------------------------
+# CPN-aware compiler polish — torch-friendly guards and arc output-value
+# transforms. These are the cases the {place, op, value} structural form
+# can't express, and the constant arc_output_values can't propagate.
+
+def test_torch_guard_multi_input_comparison_routes_correctly():
+    """A torch_guard reading two source places' values fires the
+    transition only when value(p_a) > value(p_b). The structural
+    ``{place, op, value}`` form can't express this kind of multi-input
+    comparison; torch_guard can."""
+    net = PetriNet()
+    net.add_place("p_a")
+    net.add_place("p_b")
+    net.add_place("p_out")
+    net.add_transition(
+        "t_a_wins",
+        torch_guard=lambda values: torch.sigmoid(
+            10.0 * (values["p_a"] - values["p_b"])
+        ),
+    )
+    net.add_arc("p_a", "t_a_wins")
+    net.add_arc("p_b", "t_a_wins")
+    net.add_arc("t_a_wins", "p_out")
+    module = PetriNetModule(net, sharpness=4.0)
+
+    with torch.no_grad():
+        out = module(
+            input_marking={
+                "p_a": torch.tensor([1.0, 1.0]),
+                "p_b": torch.tensor([1.0, 1.0]),
+            },
+            input_values={
+                "p_a": torch.tensor([5.0, 0.5]),
+                "p_b": torch.tensor([1.0, 4.0]),
+            },
+        )
+    # First sample: p_a wins (5 > 1) — gate near 1.
+    assert out["t_a_wins"][0].item() > 0.7
+    # Second sample: p_b wins (4 > 0.5) — gate near 0.
+    assert out["t_a_wins"][1].item() < 0.1
+
+
+def test_torch_guard_overrides_structural_guard_when_both_present():
+    """If a transition declares both a structural guard and a
+    torch_guard, the torch_guard wins (it's strictly more
+    expressive). Here the structural guard would fire on amount >=
+    1000 but the torch_guard inverts that — it must be the
+    torch_guard's call that determines firing."""
+    net = PetriNet()
+    net.add_place("p_in")
+    net.add_place("p_out")
+    net.add_transition(
+        "t_inverted",
+        structural_guard={"place": "p_in", "op": ">=", "value": 1000.0},
+        torch_guard=lambda values: torch.sigmoid(
+            10.0 * (500.0 - values["p_in"])
+        ),
+    )
+    net.add_arc("p_in", "t_inverted")
+    net.add_arc("t_inverted", "p_out")
+    module = PetriNetModule(net, sharpness=4.0)
+
+    with torch.no_grad():
+        out = module(
+            input_marking={"p_in": torch.tensor([1.0, 1.0])},
+            input_values={"p_in": torch.tensor([2000.0, 100.0])},
+        )
+    # 2000 would pass the structural guard (>= 1000) but the
+    # torch_guard inverts to "value < 500" — high amount gets
+    # *blocked*.
+    assert out["t_inverted"][0].item() < 0.1
+    # 100 fails the structural guard but passes the torch_guard
+    # (100 < 500) — low amount gets through.
+    assert out["t_inverted"][1].item() > 0.7
+
+
+def test_torch_output_value_doubles_input_and_downstream_guard_sees_it():
+    """An arc with a torch_output_value that doubles the input value
+    lets a downstream structural guard route on the *doubled* value.
+    Confirms both that the torch transform is honoured in the
+    compiler's value channel and that it propagates correctly to
+    downstream guards."""
+    net = PetriNet()
+    net.add_place("p_source")
+    net.add_place("p_mid")
+    net.add_place("p_high")
+    net.add_place("p_low")
+    net.add_transition("t_double")
+    # Downstream gate: fires only if the value at p_mid is >= 1000.
+    net.add_transition(
+        "t_high_gate",
+        structural_guard={"place": "p_mid", "op": ">=", "value": 1000.0},
+    )
+    net.add_transition(
+        "t_low_gate",
+        structural_guard={"place": "p_mid", "op": "<", "value": 1000.0},
+    )
+    net.add_arc("p_source", "t_double")
+    # The torch transform reads bound input-place values and returns
+    # double. With an input of 1500, the produced value at p_mid is
+    # 3000, well above the downstream >= 1000 gate. With an input of
+    # 200, the doubled value 400 is well below, so the < 1000 gate
+    # fires instead. Both margins are wide enough that the auto-scaled
+    # guard sigmoid is firmly saturated either way.
+    net.add_arc(
+        "t_double",
+        "p_mid",
+        torch_output_value=lambda values: 2.0 * values["p_source"],
+    )
+    net.add_arc("p_mid", "t_high_gate")
+    net.add_arc("p_mid", "t_low_gate")
+    net.add_arc("t_high_gate", "p_high")
+    net.add_arc("t_low_gate", "p_low")
+    module = PetriNetModule(net, sharpness=4.0)
+
+    with torch.no_grad():
+        out = module(
+            input_marking={"p_source": torch.tensor([1.0, 1.0])},
+            input_values={"p_source": torch.tensor([1500.0, 200.0])},
+        )
+    # Source 1500 → p_mid value 3000 → high gate fires, low gate doesn't.
+    assert out["t_high_gate"][0].item() > 0.7
+    assert out["t_low_gate"][0].item() < 0.3
+    # Source 200 → p_mid value 400 → low gate fires, high gate doesn't.
+    assert out["t_high_gate"][1].item() < 0.3
+    assert out["t_low_gate"][1].item() > 0.7

@@ -363,7 +363,9 @@ class PetriNetModule(nn.Module):
                     value_numerator = sum(
                         self.arc_weights[self._arc_key[(t, node)]]
                         * activations[t]
-                        * self._output_value(t, node, batch_size, device)
+                        * self._output_value(
+                            t, node, place_values, batch_size, device
+                        )
                         for t in preset
                     )
                     place_values[node] = value_numerator / (activations[node] + eps)
@@ -425,18 +427,26 @@ class PetriNetModule(nn.Module):
         self,
         transition: str,
         place: str,
+        place_values: dict[str, torch.Tensor],
         batch_size: int,
         device: torch.device,
     ) -> torch.Tensor:
         """Value carried by tokens this transition produces at ``place``.
 
-        Honours constant entries in ``arc_output_values`` directly.
-        Callable entries are evaluated only in the discrete coloured
-        token-game and treated as the default value 1.0 in the
-        differentiable forward pass — turning a Python callable into a
-        torch-friendly transform is a separate piece of work; for now
-        the modeller can express any constant they like and the
-        compiler will honour it."""
+        Precedence: ``arc_torch_output_values`` (callable on bound input
+        value tensors) → constant entries in ``arc_output_values`` →
+        default 1.0. Float-callable entries in ``arc_output_values``
+        live in the discrete-token-game world and are not evaluated
+        here — declare a ``torch_output_value`` on the arc if you want
+        a non-constant transform during training."""
+        torch_fn = self.net.arc_torch_output_values.get((transition, place))
+        if torch_fn is not None:
+            bound = {
+                p: place_values[p]
+                for p in self.net.preset(transition)
+                if p in place_values
+            }
+            return torch_fn(bound)
         spec = self.net.arc_output_values.get((transition, place))
         if spec is None or callable(spec):
             return torch.ones(batch_size, device=device)
@@ -449,14 +459,29 @@ class PetriNetModule(nn.Module):
     ) -> torch.Tensor | None:
         """Soft-guard multiplier on a transition's firing strength.
 
-        Returns ``None`` for transitions with no structural guard
-        (so callers can skip the multiplication and keep autograd
-        clean in the common case). When the gate place's value
-        hasn't been computed yet (e.g. on the first step of a
-        time-unrolled run where an upstream transition hasn't fired)
-        we also return ``None`` — the activation gate will pick up
-        the slack and the guard re-engages once a value is available.
+        Precedence: a user-supplied ``torch_guard`` on the transition
+        wins (it's strictly more expressive — multi-input, compound,
+        custom learnable sub-networks). Otherwise the structural
+        ``{place, op, value}`` form contributes a learnable-threshold
+        sigmoid. Returns ``None`` for transitions with no guard at
+        all so the caller skips the multiplication and keeps autograd
+        clean in the common case. When the gate's input value hasn't
+        been computed yet (e.g. the first step of a time-unrolled run
+        where an upstream transition hasn't fired) we also return
+        ``None`` — the activation gate carries the load until a
+        value is available.
         """
+        torch_fn = self.net.transition_torch_guards.get(transition)
+        if torch_fn is not None:
+            bound = {
+                p: place_values[p]
+                for p in self.net.preset(transition)
+                if p in place_values
+            }
+            if not bound:
+                return None
+            return torch_fn(bound)
+
         meta = self._guard_meta.get(transition)
         if meta is None:
             return None
@@ -658,10 +683,16 @@ class PetriNetModule(nn.Module):
                         self.arc_weights[self._arc_key[(t, p)]] * trans_acts[t]
                         for t in preset
                     )
+                    # Torch output transforms read bound input values
+                    # from the *previous* step's place_values — the
+                    # values that were standing at the transition's
+                    # input places at the moment it fired.
                     value_numerator = sum(
                         self.arc_weights[self._arc_key[(t, p)]]
                         * trans_acts[t]
-                        * self._output_value(t, p, batch_size, device)
+                        * self._output_value(
+                            t, p, place_values, batch_size, device
+                        )
                         for t in preset
                     )
                     new_place_values[p] = value_numerator / (new_places[p] + eps)

@@ -181,9 +181,32 @@ resulting activation by ``(1 − a(p))`` for each inhibitor place;
 transition durations buffer the activation for D−1 time-unrolled
 steps before it contributes to downstream places.
 
-**Coloured-Petri-net layer.** When a transition has a structural
-guard declared as ``{place, op, value}`` (TOML form, or via
-``add_transition(..., structural_guard=...)``), the compiler builds
+**Coloured-Petri-net layer.** Three ways to express value-dependent
+behaviour, in order of expressiveness:
+
+1. **Structural guard** — ``{place, op, value}`` declared in TOML or
+   via ``add_transition(..., structural_guard=...)``. The compiler
+   builds one learnable ``nn.Parameter`` threshold per guarded
+   transition; training refines it. This is the case where you want
+   PETRA to *learn the threshold from data*.
+2. **Torch guard** — a Python callable on the transition (kwarg
+   ``torch_guard=...``) taking ``dict[place_id, Tensor(batch,)]`` of
+   input values and returning a ``Tensor(batch,)`` gate in [0, 1].
+   For routing logic the structural form can't express:
+   multi-input comparisons, compound predicates, custom learnable
+   sub-networks. Overrides the structural guard when both are
+   declared on the same transition.
+3. **Token-game-only callable guard** — ``guard=...``, a bool-returning
+   ``GuardFn``. Used by ``fire_coloured`` / ``is_enabled_coloured``;
+   the compiler ignores it.
+
+Output-arc values follow the same three-tier pattern:
+``torch_output_value`` (callable on bound input value tensors,
+honoured by the compiler), then ``output_value`` (constant float
+honoured by the compiler, or callable evaluated only by the
+token-game), then the default 1.0.
+
+When a transition has a structural guard, the compiler builds
 one learnable ``nn.Parameter`` threshold per guarded transition —
 seeded at the TOML value, refined by training. A soft sigmoid
 gate multiplies the transition's firing strength:

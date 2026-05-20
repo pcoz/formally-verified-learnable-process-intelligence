@@ -569,9 +569,16 @@ systems. This phase fixes that.
   in TOML. The credit-approval scenario trains both seeded
   thresholds into the empirical decision band (900–1500) from the
   hand-set 1000 and routes held-out values correctly under the
-  soft guards. Callable guards and callable arc-output-value
-  transforms stay token-game-only — turning a Python callable into
-  a torch-friendly transform is separate work.
+  soft guards. Torch-friendly callable guards (`torch_guard` on a
+  transition, called as `dict[place_id, Tensor] -> Tensor[batch]`)
+  and torch-friendly arc output-value transforms (`torch_output_value`
+  on an arc) are also supported as escape hatches for routing logic
+  the structural form can't express — multi-input comparisons,
+  compound predicates, custom learnable sub-networks. The torch
+  guard overrides the structural guard when both are declared on
+  the same transition. Bool-returning callable guards and
+  float-returning callable arc-output-values continue to live at the
+  token-game level only.
 - [x] **Inhibitor arcs.** Declarative "fire only when this place is
   empty" guards. The compiler implements them as a multiplicative
   `(1 - a(p))` gate after firing. The `resource_lock` scenario uses

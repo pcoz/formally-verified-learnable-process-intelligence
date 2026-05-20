@@ -94,6 +94,29 @@ class PetriNet:
     # ``transition_guards`` and used by the coloured token-game only).
     transition_structural_guards: dict[str, dict] = field(default_factory=dict)
 
+    # Torch-friendly soft guards: user-supplied callables that take a
+    # dict mapping each input place to a (batch_size,) value tensor
+    # and return a (batch_size,) gate tensor in [0, 1]. The compiler
+    # multiplies the transition's firing strength by this gate. Lets
+    # the modeller express routing logic the ``{place, op, value}``
+    # structural form can't — multi-input comparisons, compound
+    # predicates, custom learnable sub-networks. Has no effect on
+    # the discrete token-game; the matching bool-returning entry in
+    # ``transition_guards`` is what serves that path. If a transition
+    # appears in both this dict and ``transition_structural_guards``,
+    # the torch callable wins (it's more expressive).
+    transition_torch_guards: dict[str, Callable] = field(default_factory=dict)
+
+    # Torch-friendly arc output-value transforms: callables taking the
+    # bound input-place value tensors and returning the value tensor
+    # the produced token carries. Symmetric to ``arc_output_values``
+    # but lives in tensor-land, so the compiler can use it during
+    # training. Float-returning callables in ``arc_output_values``
+    # remain token-game-only.
+    arc_torch_output_values: dict[tuple[str, str], Callable] = field(
+        default_factory=dict
+    )
+
     def add_place(self, pid: str, *, label: str | None = None, tokens: int = 0) -> None:
         self.places.add(pid)
         if label is not None:
@@ -110,6 +133,7 @@ class PetriNet:
         rate: float = 1.0,
         guard: GuardFn | None = None,
         structural_guard: dict | None = None,
+        torch_guard: Callable | None = None,
     ) -> None:
         """Add a transition.
 
@@ -142,6 +166,17 @@ class PetriNet:
         path keeps using ``guard`` unchanged, so the two views stay
         in sync: the declarative record is the trainable face of the
         same rule the callable encodes.
+
+        ``torch_guard`` is a user-supplied torch-friendly soft gate:
+        a callable taking ``dict[place_id, Tensor(batch,)]`` of input
+        values and returning a ``Tensor(batch,)`` gate in [0, 1].
+        The compiler multiplies the transition's firing strength by
+        this gate. Use it for routing logic the structural form
+        can't express — multi-input comparisons, compound predicates,
+        custom learnable sub-networks. If both ``structural_guard``
+        and ``torch_guard`` are supplied, the torch callable wins in
+        the compiler (it's strictly more expressive). The token-game
+        is unaffected by ``torch_guard`` either way.
         """
         if duration < 1:
             raise ValueError(
@@ -170,6 +205,13 @@ class PetriNet:
                         f"{key!r}; got {structural_guard}"
                     )
             self.transition_structural_guards[tid] = dict(structural_guard)
+        if torch_guard is not None:
+            if not callable(torch_guard):
+                raise ValueError(
+                    f"transition {tid!r}: torch_guard must be callable, "
+                    f"got {type(torch_guard).__name__}"
+                )
+            self.transition_torch_guards[tid] = torch_guard
 
     def duration(self, transition: str) -> int:
         """The transition's firing duration in time-unrolled steps.
@@ -189,6 +231,7 @@ class PetriNet:
         *,
         weight: int = 1,
         output_value: OutputValueSpec | None = None,
+        torch_output_value: Callable | None = None,
     ) -> None:
         """Add an arc.
 
@@ -200,8 +243,19 @@ class PetriNet:
         produces — a constant float, or a callable receiving the
         input-place values bound at the transition and returning
         a float. If omitted, the produced token carries value 1.0.
-        The output value only matters for the coloured token-game
-        (``fire_coloured``); count-based firing ignores it.
+        The float / callable forms are evaluated by the coloured
+        token-game (``fire_coloured``); count-based firing ignores
+        them, and the compiler honours only the constant form.
+
+        ``torch_output_value`` is the torch-friendly counterpart:
+        a callable taking ``dict[place_id, Tensor(batch,)]`` of bound
+        input values and returning a ``Tensor(batch,)`` that the
+        compiler uses as the value carried by the produced token in
+        the per-place value channel. Only applies to transition →
+        place arcs. Doesn't participate in the discrete token-game
+        (that's what ``output_value`` is for); the two can coexist —
+        the token-game uses ``output_value`` and the compiler uses
+        ``torch_output_value`` when present.
         """
         if weight < 1:
             raise ValueError(
@@ -228,6 +282,18 @@ class PetriNet:
                     f"transition -> place arcs (this arc starts at a place)"
                 )
             self.arc_output_values[(src, dst)] = output_value
+        if torch_output_value is not None:
+            if src not in self.transitions:
+                raise ValueError(
+                    f"arc {src!r} -> {dst!r}: torch_output_value only applies "
+                    f"to transition -> place arcs (this arc starts at a place)"
+                )
+            if not callable(torch_output_value):
+                raise ValueError(
+                    f"arc {src!r} -> {dst!r}: torch_output_value must be "
+                    f"callable, got {type(torch_output_value).__name__}"
+                )
+            self.arc_torch_output_values[(src, dst)] = torch_output_value
 
     def weight(self, src: str, dst: str) -> int:
         """How many tokens this arc moves per firing. 1 unless an
@@ -459,6 +525,25 @@ class PetriNet:
                 issues.append(
                     f"structural guard on transition {transition!r} "
                     f"reads place {place!r} which is not in its preset"
+                )
+
+        for transition in self.transition_torch_guards:
+            if transition not in self.transitions:
+                issues.append(
+                    f"torch guard recorded for unknown transition "
+                    f"{transition!r}"
+                )
+
+        for (src, dst) in self.arc_torch_output_values:
+            if (src, dst) not in self.flow:
+                issues.append(
+                    f"torch output value recorded for {src!r} -> {dst!r} "
+                    f"but no such arc in the flow relation"
+                )
+            elif src not in self.transitions:
+                issues.append(
+                    f"torch output value on arc {src!r} -> {dst!r}: only "
+                    f"transition -> place arcs may carry output values"
                 )
 
         for (src, dst) in self.arc_output_values:
