@@ -1,38 +1,53 @@
 # PETRA
 
-**PETRA** (Petri-Net Trained Architecture) learns how a
-discrete-event system actually behaves from its execution logs, and
-turns the learned behaviour into things you can act on: readable
-decision rules, anomaly scores pinned to specific named elements,
-formal equivalence proofs between system variants, and cost rankings
-over behaviour-preserving refactorings.
+**PETRA** (*Petri-Net Trained Architecture*) learns how a
+**discrete-event system** actually behaves from its **execution
+logs**, and turns the learned behaviour into four things you can
+act on:
 
-Take a loan-approval process and 10,000 recorded loans. PETRA tells
-you which rules the actual decisions follow ("if amount > £1,000
-the application gets a credit-review"), flags loans that took
-unusual paths (someone skipped the credit check on a high-value
-application), and lets you compare two candidate redesigns of the
-process — *proving* they do the same thing and showing which one
-costs less to run on the observed workload. The same primitives
-cover distributed-system protocols, manufacturing lines, laboratory
-recipes, multi-agent coordination, IT incident management, and
-biology signalling pathways.
+- **Readable decision rules** — distilled from the trained weights
+  in domain vocabulary, e.g. *"if amount > £1,000 → credit-review."*
+- **Anomaly scores** — pinned to specific named elements, not
+  opaque whole-trace numbers.
+- **Formal equivalence proofs** — strong bisimulation between two
+  variants, *before* either is deployed.
+- **Cost rankings** — over behaviour-preserving refactorings,
+  fitted to your observed workload.
 
-You give PETRA a Petri net describing the system's structure and an
-execution log. A Petri net is the standard formal model for this
-class of system: *places* hold tokens (work items, requests,
-messages); *transitions* move tokens between places (a step
-firing); the graph of arcs between places and transitions captures
-the control flow. PETRA compiles the Petri net into a neural
-network whose **topology *is* the Petri net** — one trainable
-weight per arc, one trainable threshold per transition, nothing
-else can be learned. Training fits the network to the log.
-Because every parameter corresponds to a named element of the
-original structure, the trained model stays interpretable,
-structurally verified, and amenable to formal analysis. That last
-property is what makes equivalence proofs and cost-ranked
-refactoring possible — neither of which you can do with a generic
-ML model.
+**Take a loan-approval process and 10,000 recorded loans.** PETRA
+tells you which rules the actual decisions follow (*"if amount >
+£1,000 the application gets a credit-review"*), flags loans that
+took unusual paths (*someone skipped the credit check on a
+high-value application*), and lets you compare two candidate
+redesigns of the process — **proving they do the same thing** and
+showing which one **costs less to run** on the observed workload.
+The same primitives cover distributed-system protocols,
+manufacturing lines, laboratory recipes, multi-agent coordination,
+IT incident management, and biology signalling pathways.
+
+You give PETRA a **Petri net** describing the system's structure
+and an execution log. A Petri net is the standard formal model
+for this class of system:
+
+- ***places*** hold tokens (work items, requests, messages);
+- ***transitions*** move tokens between places (a step firing);
+- ***arcs*** between places and transitions capture the control flow.
+
+PETRA compiles the Petri net into a neural network whose
+**topology *is* the Petri net** — *one trainable weight per arc,
+one trainable threshold per transition, nothing else can be
+learned.* Training fits the network to the log. Because every
+parameter corresponds to a named element of the original structure,
+the trained model stays:
+
+- **interpretable** — every parameter has a name from your domain;
+- **structurally verified** — by construction, before you train;
+- **amenable to formal analysis** — bisimulation, soundness,
+  equivalence proofs over the structure.
+
+That last property is what makes **equivalence proofs** and
+**cost-ranked refactoring** possible — neither of which you can do
+with a generic ML model.
 
 ---
 
@@ -40,75 +55,57 @@ ML model.
 
 PETRA fits any **finite-state, terminating, discrete-event system**
 for which you have **observable execution traces of multiple
-instances**. That class is much larger than it sounds. The 13 worked
-scenarios under `examples/` make it concrete:
+instances**. That class is much larger than it sounds — for each
+domain below, the second column says why it doesn't *look* like an
+ML target at first glance, and the third says why the substrate
+fits anyway:
 
-- **Business processes.** Loan approval with cost-ranked variant
-  refactoring (provably-equivalent variants ranked by realised
-  execution cost); credit approval where the per-application amount
-  travels with the token and the approve/decline threshold is
-  *learned from data* rather than hand-set; real IT incident
-  management trained on the BPI Challenge 2013 dataset (7,554 Volvo
-  IT tickets, the actual public log).
-- **Distributed-system protocols.** Two-phase commit with Byzantine
-  commit-after-low-vote anomaly detection; TCP 3-way handshake
-  compiled from the RFC, with SYN-flood and half-open attack
-  patterns flagged as anomalies.
-- **Multi-agent coordination.** Three-pool contract-net with
-  bid-driven contractor selection; pre-bid award flagged as a
-  protocol violation.
-- **Manufacturing and supply-chain workflows.** Multi-station
-  production line with quality-gated rework routing; paint-shop
-  cure step modelled as a multi-step transition duration;
-  bottle-to-crate batching via multi-token arc multiplicities.
-- **Operational coordination patterns.** Priority-driven dispatch
-  across three handlers with declared rate priors that training
-  refines; mutex on a shared resource enforced via inhibitor arcs.
-- **Laboratory and clinical protocols.** PCR with deviation
-  analysis flagging skipped quality gates.
-- **Cell-biology signalling pathways.** Kinase cascade with
-  strength-conditioned fast/slow pathway routing, with the routing
-  rule distilled in pathway vocabulary.
+| Domain | Why this isn't obvious | Why it fits anyway | Shipped scenarios |
+|---|---|---|---|
+| **Business processes** | BPM tools handle workflows; generic ML handles logs. The two are usually treated as separate problems with separate tools. | A BPMN diagram **is** a Petri net. The structural verification supplies interpretability and formal analysis; the logs supply the learning signal. Both at once, in one trained model. | `cost_ranked_refactoring`, `credit_approval_coloured`, `incident_management` |
+| **Distributed-system protocols** | Protocols are hand-specified state machines. You write the spec; you don't *learn* it. | The spec gives the structure. Production traces show how the deployed system **actually** behaves — including attack patterns and Byzantine faults that aren't in the spec. PETRA flags the deviations. | `distributed_consensus` (2PC), `network_protocol` (TCP) |
+| **Multi-agent coordination** | Multi-agent systems are usually studied with game theory or reinforcement learning, not formal models. | Coordination *protocols* (contract-net, FIPA-ACL) are explicit message-passing flows. Each agent's state machine plus the inter-agent message places compose as a multi-pool Petri net naturally. | `multi_agent_coordination` |
+| **Manufacturing & supply chain** | Simulated with domain-specific tools (Simio, AnyLogic); ML in this space usually means demand forecasting, not workflow modelling. | Production lines literally **are** discrete-event token systems — parts moving between stations, batches accumulating, quality gates routing. The Phase 9 primitives (multi-token arcs, durations, inhibitor arcs) model these directly. | `manufacturing_cell`, `paint_shop`, `batch_packaging` |
+| **Operational coordination** | Priority dispatch and mutex feel like OS-level concerns, not "process intelligence". | Any system using these primitives has them in its control flow. Modelling at the Petri-net level lets you analyse the system's *actual* coordination against the protocol it declares. | `priority_dispatch`, `resource_lock` |
+| **Laboratory & clinical protocols** | Lab protocols feel domain-specific (chemistry, biology) and are usually owned by proprietary LIMS systems. | A protocol is a sequenced, gated workflow with deviations to flag — same shape as a business process. The lab's electronic logs are already structured. | `scientific_workflow` (PCR) |
+| **Cell-biology signalling pathways** | Pathway analysis is a biology problem; ML usually means gene expression or protein structure, not "train a model of the pathway". | Reactome-style pathway databases literally store pathways as Petri-net structures: *places are molecule pools, transitions are reactions.* The activation channel is the natural soft analogue of pathway flux. | `biological_signalling` |
 
 The same primitives cover more ground than the shipped scenarios
-exercise: state machines in embedded software, regulatory and
-compliance workflows, games with bounded state, contract / treaty
-/ agreement workflows, scientific data pipelines, RPA scripts.
+exercise: *state machines in embedded software*, *regulatory and
+compliance workflows*, *games with bounded state*, *contract /
+treaty / agreement workflows*, *scientific data pipelines*, *RPA
+scripts*.
 
-PETRA works best when four properties hold:
+PETRA works best when **all four properties below** hold:
 
-- **Discrete events.** State changes at identifiable moments (a
-  transition firing), rather than continuously over time.
-- **Multiple-instance trace data.** You have many recorded runs of
-  the system to learn from. One run isn't enough.
-- **Stable structure for the duration of training.** The
-  place/transition graph stays fixed while you learn the dynamics
-  within it.
-- **Tractably finite state space.** Small enough that the compiled
-  Petri net fits in memory and trains in reasonable time. Thousands
-  of places and transitions work fine, but problems that need a
-  whole economy or the entire internet at full resolution don't fit.
+| Property | What it means |
+|---|---|
+| **Discrete events** | State changes at identifiable moments (a transition firing), rather than continuously over time. |
+| **Multiple-instance trace data** | You have many recorded runs of the system to learn from. *One run isn't enough.* |
+| **Stable structure for training** | The place/transition graph stays fixed while you learn the dynamics within it. |
+| **Tractably finite state space** | The compiled Petri net fits in memory and trains in reasonable time. Thousands of places and transitions work fine; problems that need a whole economy or the entire internet at full resolution don't fit. |
 
 Fluid dynamics, classical mechanics, analogue control, and similar
-continuous-time / continuous-state physics need a different
-substrate — Petri nets are discrete by design.
+**continuous-time / continuous-state physics need a different
+substrate** — Petri nets are discrete by design.
 
 ## What you get out of it
 
-PETRA combines a fixed verified topology with learned dynamics
-within it. That gives you four capabilities together:
+PETRA combines a **fixed verified topology** with **learned
+dynamics within it**. Each individual capability below is possible
+in isolation with some other tool — but only PETRA gives you all
+four over a single trained model:
 
-- **Interpretability at the granularity of named domain elements**
-  — BPMN tasks, biological pathway components, protocol states.
-- **Formal equivalence checks** between two models via strong
-  bisimulation, before either is deployed.
-- **Anomaly detection** with residuals pinned to specific transitions
-  rather than opaque whole-trace scores.
-- **Cost-ranked refactoring** — provably-equivalent variants compared
-  by realised-execution cost on the trained firing distribution.
+| Capability | What it means in practice |
+|---|---|
+| **Interpretability at named domain elements** | Every parameter corresponds to a BPMN task, a biological pathway component, a protocol state — not an opaque vector index. |
+| **Formal equivalence checks** | Strong bisimulation between two trained models, *before* either is deployed: *"this redesign behaves identically to the old version."* |
+| **Anomaly detection at the transition level** | Residuals pinned to specific transitions — *"the credit-check step didn't fire when the data says it should have"* — not opaque whole-trace scores. |
+| **Cost-ranked refactoring** | Provably-equivalent variants compared by realised-execution cost on the trained firing distribution: *"Variant B is provably equivalent to Variant A and 6× cheaper."* |
 
-PETRA's shape fits problems with explicit place/transition
-structure; arbitrary sequence modelling fits something else.
+PETRA's shape fits problems with **explicit place/transition
+structure**. Arbitrary sequence modelling (free-text,
+unrestricted time-series) fits something else.
 
 ---
 
@@ -154,202 +151,115 @@ None of those four tools touch any of those four capabilities.
 
 The five tools naturally compose end-to-end on the same model:
 
-> **ProM** discovers the structure from logs → **CPN Tools**
-> verifies its soundness → **GreatSPN** gives stochastic throughput
-> → **TINA** proves temporal invariants → **PETRA** learns the
-> dynamics that actually occur in production, distills the routing
-> rules, detects deviations, and ranks refactorings.
+1. **ProM** discovers the structure from logs.
+2. **CPN Tools** verifies its soundness.
+3. **GreatSPN** gives stochastic throughput bounds.
+4. **TINA** proves temporal invariants.
+5. **PETRA** learns the dynamics that actually occur in production,
+   distils the routing rules, detects deviations, and ranks
+   refactorings.
 
-PNML support is the bridge that makes this stack possible — any of
-those tools' output can now feed straight into PETRA. That's why
-PNML is high-leverage despite being only a few hundred lines of
-code: it converts PETRA from a standalone Python library into an
-ecosystem citizen, one PNML file away from any of the above.
+**PNML support is the bridge that makes this stack possible** —
+any of those tools' output can now feed straight into PETRA.
+That's why PNML is high-leverage despite being only a few hundred
+lines of code: it converts PETRA from a standalone Python library
+into an ecosystem citizen, *one PNML file away from any of the
+above*.
 
 ---
 
 ## Using the whole toolchain together
 
-Suppose a bank wants to unify the loan-approval process across two
-regional offices that have drifted apart over the years. The shared
-starting point is the offices' logs — tens of thousands of recorded
-applications each, all the routing decisions captured, no documented
-"correct" process to refer back to.
+Suppose a bank wants to **unify the loan-approval process across
+two regional offices** that have drifted apart over the years. The
+shared starting point is the offices' logs — *tens of thousands of
+recorded applications each, all the routing decisions captured, no
+documented "correct" process to refer back to.*
 
-**ProM** runs an inductive miner over each office's log and produces
-a Petri net per office. You now have two structural models
-discovered directly from data, where before there was nothing.
+The five tools work through it in order:
 
-**CPN Tools** opens each net and verifies elementary soundness —
-proper completion, deadlock-freedom, boundedness. Both pass; the
-offices' actual behaviour does conform to a sound workflow net.
+1. **ProM** runs an *inductive miner* over each office's log and
+   produces a Petri net per office. *You now have two structural
+   models discovered directly from data, where before there was
+   nothing.*
 
-**GreatSPN** annotates the nets with stochastic firing rates derived
-from the same logs and computes closed-form throughput bounds.
-Office A maxes out at ~250 applications/day, Office B at ~180/day.
+2. **CPN Tools** opens each net and verifies elementary soundness
+   — *proper completion, deadlock-freedom, boundedness.* Both
+   pass; the offices' actual behaviour does conform to a sound
+   workflow net.
 
-**TINA** specifies the regulatory invariants the bank's compliance
-team cares about — "every approved loan eventually fires the
-audit-log transition", "no decline fires without a prior
-credit-check" — and model-checks each net against them via CTL.
-Office A passes both; Office B violates the audit-log invariant on
-a small subset of paths, surfaced as a counterexample trace.
+3. **GreatSPN** annotates the nets with stochastic firing rates
+   derived from the same logs and computes closed-form throughput
+   bounds. *Office A maxes out at ~250 applications/day, Office B
+   at ~180/day.*
 
-**PETRA** takes the verified nets plus the original logs and:
+4. **TINA** specifies the regulatory invariants the bank's
+   compliance team cares about — *"every approved loan eventually
+   fires the audit-log transition"*, *"no decline fires without a
+   prior credit-check"* — and model-checks each net against them
+   via CTL. Office A passes both; **Office B violates the audit-log
+   invariant** on a small subset of paths, surfaced as a
+   counterexample trace.
 
-- Trains each into a differentiable model whose weights correspond
-  to the offices' actual routing decisions.
-- Distils the trained weights into readable rules: Office A approves
-  at amount > £5,000 with a strict credit-check gate; Office B at
-  amount > £8,000 with a more lenient gate. Same shape, different
-  thresholds.
-- Runs strong bisimulation between the two trained nets. They are
-  *not* equivalent — which is the answer to "are the offices doing
-  the same thing?" (they aren't).
-- Scores held-out applications for anomalies pinned to specific
-  transitions, so the compliance team can see which Office B traces
-  actually skipped the audit-log.
-- Ranks two proposed unified processes by realised-execution cost on
-  the combined trace distribution, with bisimulation proving each is
-  behaviourally equivalent to a reference variant.
+5. **PETRA** takes the verified nets plus the original logs and:
 
-The output is something the bank's process team can act on: an
-evidence-backed comparison, a verified equivalence claim (or proof
-that one doesn't hold), a cost-ranked redesign, and a list of
-compliance-flagged traces to investigate. None of the five tools
-alone produces all of that. The PNML format is the bridge — each
-tool's output can be read by the next without bespoke glue.
+   - **Trains** each into a differentiable model whose weights
+     correspond to the offices' actual routing decisions.
+   - **Distils** the trained weights into readable rules — *Office
+     A approves at amount > £5,000 with a strict credit-check gate;
+     Office B at amount > £8,000 with a more lenient gate. Same
+     shape, different thresholds.*
+   - **Runs strong bisimulation** between the two trained nets.
+     They are **not** equivalent — which is the answer to *"are the
+     offices doing the same thing?"* (they aren't).
+   - **Scores held-out applications** for anomalies pinned to
+     specific transitions, so the compliance team can see which
+     Office B traces actually skipped the audit-log.
+   - **Ranks two proposed unified processes** by realised-execution
+     cost on the combined trace distribution, with bisimulation
+     proving each is behaviourally equivalent to a reference variant.
+
+The output is something the bank's process team can act on:
+
+- an *evidence-backed comparison* of the two offices,
+- a *verified equivalence claim* (or proof that one doesn't hold),
+- a *cost-ranked redesign*, and
+- a *list of compliance-flagged traces* to investigate.
+
+**None of the five tools alone produces all of that.** The PNML
+format is the bridge — each tool's output can be read by the next
+without bespoke glue.
 
 ---
 
 ## Worked examples
 
-PETRA ships with 13 end-to-end scenarios under `examples/`. Each is
-a self-contained TOML configuration plus a paired test that drives
-the full pipeline — load the net, load the traces, compile, train,
-extract rules, score anomalies. They span deliberately different
-domains to make the point that the substrate isn't just for
-business processes.
+PETRA ships with **13 end-to-end scenarios** under `examples/`.
+Each is a self-contained TOML configuration plus a paired test
+that drives the full pipeline — *load the net, load the traces,
+compile, train, extract rules, score anomalies.* They span
+deliberately different domains to make the point that the
+substrate isn't just for business processes.
 
 Each scenario links to its own README with the long-form
 explanation, the data source, the framework features it exercises,
 and the load-bearing claims in its test.
 
-### Business processes
-
-- **[`cost_ranked_refactoring`](examples/cost_ranked_refactoring/).**
-  Two BPMN variants of the same approval process are compiled,
-  proved equivalent by strong bisimulation, then trained on a
-  shared trace distribution. Realised-execution cost is computed
-  for each, and Variant B comes out ~6× cheaper while doing
-  provably the same thing. *Use case:* provably-safe process
-  refactoring — the canonical demonstration that PETRA can rank
-  semantically-preserving redesigns by cost, with formal guarantees
-  that you haven't changed what the process does.
-- **[`credit_approval_coloured`](examples/credit_approval_coloured/).**
-  Loan applications carry their amount as a coloured-token value;
-  the compiled network learns the approve/decline threshold from
-  trace data rather than taking the modeller's declared 1,000 as
-  given. After training, both learned thresholds land in the
-  empirical decision band 900–1,500, and held-out applications
-  route correctly under the soft-guard. *Use case:* data-driven
-  decision rules — when the right threshold is in the data, not in
-  someone's head.
-- **[`incident_management`](examples/incident_management/).** Trains
-  on the real BPI Challenge 2013 incidents log (7,554 Volvo IT
-  tickets, 65k events) shipped in the repo as a 1.3 MB gzipped XES
-  file. Detects traces that skip the Resolved step before Closing —
-  a known compliance failure pattern in real ITIL data. *Use case:*
-  deploying PETRA on a public, large-scale, real-world business
-  process — the proof that the framework scales beyond synthetic
-  fixtures.
-
-### Distributed-system protocols
-
-- **[`distributed_consensus`](examples/distributed_consensus/).**
-  Two-phase commit (2PC) modelled as a Petri net with one
-  coordinator pool and two cohort pools, composed through shared
-  message places. Detects Byzantine commit-after-low-vote
-  anomalies. *Use case:* distributed-protocol verification —
-  proving consensus protocols behave the way the spec says they
-  should, and flagging deviations in production traces.
-- **[`network_protocol`](examples/network_protocol/).** TCP
-  three-way handshake compiled from the RFC's state machine. After
-  training on legitimate traces, the model flags SYN-flood and
-  half-open-connection attack patterns as anomalies pinned to
-  specific transitions. *Use case:* security monitoring on protocol
-  state machines — attack-pattern detection grounded in the
-  protocol's structural spec rather than learned-from-scratch
-  sequence models.
-
-### Multi-agent coordination
-
-- **[`multi_agent_coordination`](examples/multi_agent_coordination/).**
-  Three-pool contract-net protocol with bid-driven contractor
-  selection. The AND-join rule extractor recovers the
-  synchronisation rule over three input contributors; pre-bid award
-  attempts are flagged as protocol violations. *Use case:*
-  coordination protocols among autonomous agents — verifying that
-  multi-agent systems follow the negotiation protocol they're meant
-  to, and catching out-of-order coordination events.
-
-### Physical-world workflows
-
-- **[`manufacturing_cell`](examples/manufacturing_cell/).**
-  Multi-station production line with quality-gated ship-or-rework
-  routing. PETRA distils the quality-driven ship rule from trace
-  data; mis-shipped low-quality items are flagged as anomalies.
-  *Use case:* manufacturing and supply-chain analysis —
-  quality-conditional routing rules recovered from production data.
-- **[`paint_shop`](examples/paint_shop/).** A cure step with
-  declared duration 3 — parts spend three time-steps in the cure
-  transition before reaching inspection. Demonstrates the
-  time-unrolled compiler's per-transition in-flight queue. *Use
-  case:* workflows with explicit step durations — modelling cure
-  times, wait times, batched processing windows, anywhere a step
-  doesn't complete in zero time.
-- **[`batch_packaging`](examples/batch_packaging/).** A
-  bottle-to-crate transition with input arc weight 6 — six bottles
-  accumulate before the crate transition fires. Demonstrates
-  multi-token arc multiplicities. *Use case:* batching and
-  aggregation — packaging lines, micro-batch processing, anywhere
-  N items need to combine into one before the next step.
-
-### Operational coordination patterns
-
-- **[`priority_dispatch`](examples/priority_dispatch/).** Three
-  handlers with declared firing-rate priors (3.0, 1.0, 0.5) —
-  high-rate fires more eagerly for the same input. Training refines
-  the priors against the observed dispatch distribution. *Use
-  case:* priority-aware task dispatch — modellers carry prior
-  knowledge about relative urgencies through to training, which
-  then refines them from data.
-- **[`resource_lock`](examples/resource_lock/).** Two clients
-  competing for a shared resource, with inhibitor arcs enforcing
-  the mutex — the lock-acquire transition fires only when the
-  lock-held place is empty. Demonstrates the inhibitor-arc soft
-  gate (1 − a(p)). *Use case:* mutex, semaphore, and other
-  negative-precondition patterns — modelling exclusive access to
-  shared resources without breaking the trained dynamics.
-
-### Natural-systems analogues
-
-- **[`scientific_workflow`](examples/scientific_workflow/).** PCR
-  (polymerase chain reaction) modelled as a Petri net with a
-  quality-gate transition that routes pass/fail. PETRA learns the
-  quality gate from trace data and flags traces that skip the gate
-  entirely. *Use case:* laboratory and clinical protocols —
-  protocol-conformance analysis on scientific procedures where
-  deviations matter.
-- **[`biological_signalling`](examples/biological_signalling/).** A
-  kinase cascade modelled as a Petri net with
-  signal-strength-conditioned fast/slow pathway routing. The XOR
-  routing rule is distilled in the pathway components' vocabulary
-  (not the framework's internal labels). *Use case:* cell-biology
-  signalling pathway analysis — the same primitives that handle
-  business processes turn out to model signalling networks too,
-  because Reactome-style pathway databases are essentially Petri
-  nets.
+| Scenario | What it demonstrates | Use case it represents |
+|---|---|---|
+| [**`cost_ranked_refactoring`**](examples/cost_ranked_refactoring/) | Two BPMN variants of the same approval process, proved equivalent by bisimulation, trained on a shared trace distribution, ranked by realised cost. **Variant B comes out ~6× cheaper** while doing provably the same thing. | *Provably-safe process refactoring* — pick redesigns with formal guarantees instead of guesswork. |
+| [**`credit_approval_coloured`**](examples/credit_approval_coloured/) | Coloured tokens carry the loan amount; the compiled network **learns the approve/decline threshold from data** rather than taking the modeller's declared 1,000 as given. Learned thresholds land in the empirical band 900–1,500. | *Data-driven decision rules* — when the right threshold is in the data, not in someone's head. |
+| [**`incident_management`**](examples/incident_management/) | Trains on the **real BPI Challenge 2013 incidents log** — 7,554 Volvo IT tickets, 65k events, shipped in the repo as a 1.3 MB gzipped XES file. Flags traces that skip the *Resolved* step before *Closing*. | *Real-world, large-scale, public business-process data* — proof that the framework scales beyond synthetic fixtures. |
+| [**`distributed_consensus`**](examples/distributed_consensus/) | **Two-phase commit (2PC)** modelled as three composed pools (coordinator + two cohorts) with shared message places. Detects *Byzantine commit-after-low-vote* anomalies. | *Distributed-protocol verification* — flagging deviations against the spec from production traces. |
+| [**`network_protocol`**](examples/network_protocol/) | **TCP three-way handshake** compiled from the RFC's state machine. After training on legitimate traces, flags **SYN-flood** and **half-open-connection** attacks as anomalies pinned to specific transitions. | *Security monitoring on protocol state machines* — attack-pattern detection grounded in the protocol's structural spec. |
+| [**`multi_agent_coordination`**](examples/multi_agent_coordination/) | **Three-pool contract-net** protocol with bid-driven contractor selection. The AND-join rule extractor recovers the synchronisation rule over three input contributors; *pre-bid award* attempts are flagged as protocol violations. | *Coordination protocols between autonomous agents* — catching out-of-order coordination events. |
+| [**`manufacturing_cell`**](examples/manufacturing_cell/) | Multi-station production line with **quality-gated ship-or-rework routing**. PETRA distils the quality-driven ship rule from production data; mis-shipped low-quality items are flagged as anomalies. | *Manufacturing and supply-chain analysis* — quality-conditional routing rules recovered from production data. |
+| [**`paint_shop`**](examples/paint_shop/) | A cure step with declared **duration 3** — parts spend three time-steps in the cure transition before reaching inspection. Exercises the time-unrolled compiler's per-transition in-flight queue. | *Workflows with explicit step durations* — cure times, wait times, batched processing windows. |
+| [**`batch_packaging`**](examples/batch_packaging/) | A bottle-to-crate transition with **input arc weight 6** — six bottles accumulate before the crate transition fires. Exercises multi-token arc multiplicities. | *Batching and aggregation patterns* — packaging lines, micro-batch processing, N-into-1 combination steps. |
+| [**`priority_dispatch`**](examples/priority_dispatch/) | Three handlers with **declared firing-rate priors (3.0, 1.0, 0.5)** — high-rate fires more eagerly for the same input. Training refines the priors against the observed dispatch distribution. | *Priority-aware task dispatch* — modeller priors carried through to training, then refined from data. |
+| [**`resource_lock`**](examples/resource_lock/) | Two clients competing for a shared resource, with **inhibitor arcs enforcing the mutex** — lock-acquire fires only when lock-held is empty. Exercises the soft inhibitor gate `(1 − a(p))`. | *Mutex, semaphore, and other negative-precondition patterns* — exclusive access modelled cleanly into the dynamics. |
+| [**`scientific_workflow`**](examples/scientific_workflow/) | **PCR (polymerase chain reaction)** modelled with a quality-gate transition that routes pass/fail. PETRA learns the gate from trace data and flags traces that skip it. | *Laboratory and clinical protocol conformance* — deviation analysis on scientific procedures. |
+| [**`biological_signalling`**](examples/biological_signalling/) | A **kinase cascade** with signal-strength-conditioned fast/slow pathway routing; the XOR rule is distilled in the pathway components' vocabulary, not internal framework labels. | *Cell-biology pathway analysis* — Reactome-style pathways are essentially Petri nets; the same primitives that handle business processes model signalling networks too. |
 
 Run any individual scenario with
 `python -m pytest tests/scenarios/test_<scenario_name>.py`, or
@@ -416,7 +326,7 @@ docs/
 ## Running tests
 
 ```
-python -m pytest                          # full suite (~295 tests)
+python -m pytest                          # full suite (~298 tests)
 python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
