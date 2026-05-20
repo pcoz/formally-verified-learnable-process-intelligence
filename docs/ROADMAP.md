@@ -1023,6 +1023,74 @@ that's the consuming application's call.
 
 ---
 
+## Pending worked-example scenarios
+
+The capabilities below all have full implementations and test
+coverage, but no dedicated `examples/<scenario>/` directory
+that walks through them end-to-end the way `credit_approval_coloured`
+walks through the CPN-aware compiler and `mapk_pathway` walks
+through SIF import. A new scenario for each (some can be
+bundled) is the natural next layer of polish — every additional
+worked example lowers the activation energy for a new user
+landing on the repo and finding "the thing that shows my use
+case."
+
+Suggested groupings (one bullet = one new `examples/` scenario,
+roughly):
+
+- [ ] **`discover_and_train_pipeline/`** — discovery via the
+  Inductive Miner, then chain `discover_and_train` end-to-end on
+  a small real log (a slice of BPI Challenge or a synthetic
+  log with known structure). Demonstrates Phase 12.
+
+- [ ] **`safe_refactoring/`** — extend the existing
+  `cost_ranked_refactoring` story with **weak bisimulation**
+  (variants that differ by an internal logging step are
+  recognised as equivalent), **cross-variant comparison**
+  (where in the input domain they agree and diverge), and
+  **bootstrap CIs** on the variants' extracted rules. Demonstrates
+  Phase 11 weak bisim + Phase 13 cross-variant + CIs.
+
+- [ ] **`compliance_audit/`** — a process with regulatory
+  invariants stated as **CTL** properties ("every approved
+  loan eventually fires the audit-log step"); show
+  `check_soundness` catching structural issues, `find_deadlocks`
+  pinning blocked states, and `check_ctl` verifying the
+  invariants. Demonstrates Phase 11 soundness + CTL.
+
+- [ ] **`regulator_ready_credit_approval/`** — extend
+  `credit_approval_coloured` to demonstrate the **bootstrap CI**
+  on the learned threshold, **counterfactual** analysis on a
+  declined application, **sensitivity** ranking of which inputs
+  the model leans on, and the prose-generation helpers
+  producing regulator-facing text. Demonstrates Phase 13's
+  full diagnostic toolkit applied to a single business case.
+
+- [ ] **`realtime_monitoring/`** — a streaming evaluator
+  subscribing to a simulated event source (file-tail or
+  in-process generator); per-case scoring; alerting on a
+  threshold. Demonstrates Phase 14 streaming.
+
+- [ ] **`onnx_deployment/`** — train, `export_onnx`, load via
+  `onnxruntime`, verify parity with the torch module. Documents
+  the JVM / C++ / browser deployment path the README's
+  "Three layers of guarantee" section references. Demonstrates
+  Phase 14 ONNX.
+
+- [ ] **`rest_serving/`** — `petra-train` → `petra-serve` →
+  client script (in Python AND in plain `curl`) exercising
+  each endpoint. The closest thing to an end-to-end engine-
+  integration walkthrough that doesn't need a real workflow
+  engine on the box. Demonstrates Phase 14 REST + CLI.
+
+The patterns documented in `INTEGRATION_PATTERNS.md` overlap
+with several of these (in particular the REST and streaming
+ones); a scenario differs from the integration-patterns doc
+by being an *executable, test-backed* artefact rather than a
+code-snippet recipe. Both have value: the docs guide
+integration design choices; the scenarios prove the wiring
+actually works.
+
 # What we are deliberately not building
 
 Three things sit outside every phase, on purpose.
