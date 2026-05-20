@@ -284,7 +284,46 @@ For shared-preset XOR groups (multi-input competing transitions, e.g.
 *discriminative* input — the place whose learned weight gap across
 the group is largest.
 
-### 3.8 `bisimulation.py` — formal equivalence checking
+### 3.8 `soundness.py` — Aalst soundness + deadlock localisation
+
+```python
+from petri_net_nn import (
+    SoundnessReport,
+    check_soundness,
+    find_deadlocks,
+)
+```
+
+`check_soundness(net, *, final_marking=None)` returns a
+`SoundnessReport` pinning three classical soundness conditions:
+
+| Condition | Field on report | Failing case |
+|---|---|---|
+| Option to complete | `incomplete_markings` | reachable markings from which the intended final marking can't be reached |
+| Proper completion | `lingering_token_markings` | sink reached its completion count but tokens still hang around at other places |
+| No dead transitions | `dead_transitions` | transitions never enabled in any reachable marking |
+
+`report.is_sound` is the boolean (all three lists empty);
+`report.summary()` is a one-line digest suitable for log lines and
+assertion messages. The default `final_marking` is "one token at
+each sink place" — places with no outgoing arcs. Pass an explicit
+`final_marking` when the sink is ambiguous (cyclic nets without a
+clear terminus) or when completion has multiple sink tokens.
+
+`find_deadlocks(net)` returns the *non-final* markings with no
+enabled successors — the specific token configurations from which
+the net can't progress. Overlaps with the option-to-complete
+failure that `check_soundness` reports, but isolates root-cause
+states (a state that can only reach a deadlock also fails
+option-to-complete; the deadlock itself is the actionable root).
+
+Both checks are structural — they analyse the Petri net's
+behaviour without running training. Use them before training to
+catch modeller bugs, after a refactoring to confirm the new
+variant is still sound, or in CI to enforce soundness on every
+scenario.
+
+### 3.9 `bisimulation.py` — formal equivalence checking
 
 ```python
 from petri_net_nn import (
@@ -312,7 +351,7 @@ that add or remove internal-only structural artefacts no longer
 break the equivalence claim, which is the case the cost-ranked
 refactoring story relies on.
 
-### 3.9 `subnets.py` — hand-built reference subnets
+### 3.10 `subnets.py` — hand-built reference subnets
 
 `SequentialSubnet`, `XORSubnet`, `AndSplitSubnet`, `AndJoinSubnet`,
 `SagaSubnet` — five `nn.Module` subclasses corresponding to the
@@ -452,5 +491,5 @@ python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
 
-Current test count: 320 passing across the framework and the
+Current test count: 332 passing across the framework and the
 end-to-end scenarios.

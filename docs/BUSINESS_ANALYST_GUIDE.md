@@ -601,7 +601,65 @@ bisimulation accepts the ones that are *behaviourally* equivalent.
 
 ---
 
-## 17. Choosing between equivalent redesigns by cost
+## 17. Is this process structurally sane? Soundness and deadlock checks
+
+Before you train, before you compare variants, before you cost-rank
+anything, there's a more basic question: *does this process model
+even work?* PETRA's **soundness checker** answers it.
+
+### What soundness means
+
+A process model is **sound** (in van der Aalst's classical
+formulation, the standard for workflow nets) when three properties
+all hold:
+
+| Property | Plain English | Failing case |
+|---|---|---|
+| **Option to complete** | From any reachable state, the process *can* reach the final state. | A state the process can land in but can never progress out of. *A one-way trip into a dead end.* |
+| **Proper completion** | When the process reaches the final state, no work is still hanging around in other steps. | The final step fires but tokens are still parked in some other branch — *the audit signed off while work is still in progress*. |
+| **No dead transitions** | Every step in the model is reachable — the model has no orphan transitions. | A step that's drawn in the diagram but nothing ever actually triggers it — *the modeller forgot a flow*. |
+
+### What PETRA reports
+
+`check_soundness(net)` returns a structured report:
+
+- **Incomplete markings.** The specific states from which the
+  final marking is unreachable — *option to complete* failures.
+- **Lingering-token markings.** The specific states where the
+  sink has tokens but other places still do too — *proper
+  completion* failures.
+- **Dead transitions.** A list of the transition names that are
+  never enabled — *no dead transitions* failures.
+
+If all three lists are empty, the net is sound and you can move
+on to training, equivalence checking, and refactoring with
+confidence the structural model is well-formed.
+
+### Deadlock localisation
+
+A close cousin: `find_deadlocks(net)` returns the **specific
+states** where the process is stuck — states with no enabled
+successors that aren't the intended final state. These are the
+*root causes* of an option-to-complete failure: not "this net
+can't complete cleanly" (the soundness summary) but "here's
+exactly the token configuration where it gets stuck" (the actionable
+detail).
+
+### Why this matters
+
+Currently, most BPMN tools catch only *syntactic* errors — *"this
+arrow doesn't have a target", "this gateway has no condition"*.
+Behavioural soundness — *does the process actually work as a
+control-flow system?* — almost never gets checked, because there's
+no widely-deployed tool that does it automatically.
+
+PETRA bakes soundness into the same workflow that trains, scores,
+and verifies. A scenario that ships with PETRA is required to pass
+the soundness check — that's a bar everything in `examples/` clears.
+
+---
+
+## 18. Choosing between equivalent redesigns by cost
 
 Bisimulation tells you *"these two redesigns do the same thing."*
 The next question is *"which one costs less to run?"* PETRA
@@ -641,7 +699,7 @@ repeatable, audit-trail-friendly).
 
 ---
 
-## 18. The ecosystem: where your data and models come from
+## 19. The ecosystem: where your data and models come from
 
 PETRA's job is to **train, distil, score, and verify**. It is
 deliberately **not** a structure-discovery tool, a modelling GUI,
@@ -663,7 +721,7 @@ in directly.
 
 ---
 
-## 19. Putting it all together: the end-to-end pipeline
+## 20. Putting it all together: the end-to-end pipeline
 
 The pieces above compose into a single analytical pipeline. The
 [README's bank-loan walkthrough](../README.md#using-the-whole-toolchain-together)
@@ -737,6 +795,7 @@ A short reference for the terms used in this guide.
 | **BPMN** | Business Process Model and Notation — the standard visual notation for business processes. |
 | **Coloured Petri net (CPN)** | A Petri net where each token carries a value. PETRA supports a scalar form. |
 | **Cost-ranked refactoring** | Choosing between provably-equivalent process variants by realised-execution cost. |
+| **Deadlock** | A reachable state with no enabled transitions and not the intended final state — the process is stuck. |
 | **Firing** | The event of a transition consuming input tokens and producing output tokens. |
 | **Firing rate** | A per-transition multiplier indicating how eagerly the transition fires. Higher rate = more eager. |
 | **Guard** | A precondition on a transition's firing that reads the values carried by input tokens. |
@@ -750,6 +809,7 @@ A short reference for the terms used in this guide.
 | **Reachability graph** | The graph of all markings the net can reach from its initial marking, with transitions as edges. |
 | **SIF** | Simple Interaction Format — the tab-separated format Pathway Commons uses for biology pathways. |
 | **Silent transition** (also τ) | A transition treated as invisible by the weak-bisimulation checker. Used for logging, no-op gates, internal handoffs. |
+| **Soundness** | Aalst's structural property of a workflow net: every reachable state can complete, completion leaves no lingering tokens, no transition is dead. |
 | **Strong bisimulation** | Two nets are strongly bisimilar if every transition each can take is matched exactly (label-for-label) by a transition the other can take. |
 | **Token** | A dot in a place — represents one unit of work currently in that state. |
 | **Trace** | One recorded execution of a process — a sequence of events for a single instance. |

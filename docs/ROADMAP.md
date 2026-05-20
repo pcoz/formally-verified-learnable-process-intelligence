@@ -678,12 +678,24 @@ story depends on having more to offer than the floor.
 - [ ] **CTL and LTL property checking.** Temporal-logic invariants:
   "eventually the order ships", "authentication always precedes
   data access". You can't ask PETRA these questions today.
-- [ ] **Proper Aalst soundness verification.** Today's `validate()`
-  catches well-formedness; it doesn't actually check reachability,
-  proper completion, or boundedness against the formal definition.
-  This phase closes that gap.
-- [ ] **Deadlock localisation.** Pin a deadlock to a specific
-  subnet and marking, instead of just reporting that one exists.
+- [x] **Aalst soundness verification.** `petri_net_nn.soundness`
+  exposes `check_soundness(net)` returning a `SoundnessReport`
+  with three pinned outcomes: ``incomplete_markings`` (reachable
+  markings from which the intended final marking is *not*
+  reachable — option-to-complete failures), ``lingering_token_markings``
+  (markings where the sink has reached its completion count but
+  tokens still hang around at other places — proper-completion
+  failures), and ``dead_transitions`` (transitions never enabled
+  in any reachable marking). The default final marking is
+  one-token-at-each-sink, with explicit override available. A
+  net is sound iff all three lists are empty; ``report.is_sound``
+  and ``report.summary()`` give the boolean and a one-line digest.
+- [x] **Deadlock localisation.** Companion `find_deadlocks(net)`
+  returns the *specific markings* the net can reach but can't
+  progress from, excluding the intended final marking. Pins the
+  root-cause state of an option-to-complete failure — gives a
+  process owner a specific named token configuration to look at
+  instead of just "this net doesn't complete cleanly".
 - [ ] **Coverability analysis.** For unbounded nets, identify
   *which* places are the ones blowing up.
 

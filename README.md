@@ -431,7 +431,8 @@ petri_net_nn/         # the framework
   xes.py              # IEEE XES log loader (plain + gzipped)
   anomalies.py        # corruption generators + frequency baseline
   interpretability.py # distil learned weights into rules
-  bisimulation.py     # strong-bisimulation equivalence checker
+  bisimulation.py     # strong + weak bisimulation equivalence checking
+  soundness.py        # Aalst soundness + deadlock localisation
   adapter.py          # config-driven scenario loader
 
 examples/             # 14 end-to-end scenarios — see "Worked examples" above
@@ -464,7 +465,7 @@ docs/
 ## Running tests
 
 ```
-python -m pytest                          # full suite (~320 tests)
+python -m pytest                          # full suite (~332 tests)
 python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```

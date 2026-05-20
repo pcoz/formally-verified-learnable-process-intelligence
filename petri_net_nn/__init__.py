@@ -20,6 +20,11 @@ from petri_net_nn.bisimulation import (
 from petri_net_nn.bpmn import parse_bpmn
 from petri_net_nn.pnml import parse_pnml, to_pnml
 from petri_net_nn.sif import parse_sif
+from petri_net_nn.soundness import (
+    SoundnessReport,
+    check_soundness,
+    find_deadlocks,
+)
 from petri_net_nn.compiler import PetriNetModule
 from petri_net_nn.interpretability import (
     AndJoinRule,
@@ -68,6 +73,7 @@ __all__ = [
     "TrainingConfig",
     "SequentialSubnet",
     "SharpnessScheduler",
+    "SoundnessReport",
     "XESEvent",
     "XESTrace",
     "XORPartition",
@@ -79,6 +85,7 @@ __all__ = [
     "are_weakly_bisimilar",
     "auc",
     "bisimulation_equivalence_classes",
+    "check_soundness",
     "drop_event",
     "expected_cost",
     "explain_anomaly",
@@ -89,6 +96,7 @@ __all__ = [
     "extract_xor_partition",
     "extract_xor_rule",
     "find_and_join_transitions",
+    "find_deadlocks",
     "find_xor_groups",
     "insert_event",
     "load_scenario",
