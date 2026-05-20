@@ -331,12 +331,15 @@ from petri_net_nn import (
     extract_and_join_rule,      # weighted-vote / quorum rule
     extract_and_join_rules,
     explain_anomaly,            # prose explanation pinned to BPMN labels
-    # Phase 13 — confidence intervals and prose
+    # Phase 13 — confidence intervals, counterfactuals, and prose
     bootstrap_xor_rule,         # bootstrap CI on an XOR rule
     bootstrap_and_join_rule,    # bootstrap CI on an AND-join rule
     XORRuleCI, AndJoinRuleCI,   # CI bundles (point estimate + distribution + CI)
+    find_counterfactual,        # binary-search counterfactual analysis
+    Counterfactual,             # the counterfactual bundle
     prose_for_xor_rule,         # rule (or CI) → paragraph
     prose_for_and_join_rule,    # rule (or CI) → paragraph
+    prose_for_counterfactual,   # counterfactual → paragraph
 )
 ```
 
@@ -365,10 +368,24 @@ The bootstrap RNG is seedable for reproducibility (``seed=...``);
 per-resample training uses the default global torch RNG so
 initialisation variance contributes to the distribution.
 
-**Prose helpers.** ``prose_for_xor_rule`` and
-``prose_for_and_join_rule`` accept either the bare rule or the CI
-variant. With a CI they include the bracket numbers and agreement
-percentage; with a bare rule they don't. An optional
+**Counterfactual analysis.** ``find_counterfactual(module,
+base_marking, *, flip_place, target_transition, ...)`` binary-
+searches the input at one place for the boundary at which the
+target transition's firing activation crosses 0.5. It works on
+both the marking channel (``flip_channel="marking"``) and the
+coloured-token value channel (``flip_channel="value"``, for CPN
+scenarios where the structural guard reads per-token values).
+Returns a ``Counterfactual`` with the original vs counterfactual
+input and activation pair. Separate ``tolerance`` (activation
+tolerance) and ``interval_tolerance`` (search-width tolerance, auto-
+defaults to 1e-4 of the search range) let it converge cleanly on
+both [0, 1] marking ranges and [0, 10000] value ranges.
+
+**Prose helpers.** ``prose_for_xor_rule``,
+``prose_for_and_join_rule``, and ``prose_for_counterfactual``
+accept either the bare object or the CI variant where applicable.
+With a CI the prose includes the bracket numbers and agreement
+percentage; with a bare object it doesn't. An optional
 ``input_label`` substitutes a domain term for the raw place id —
 useful for regulator-facing output.
 
@@ -623,5 +640,5 @@ python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
 
-Current test count: 358 passing across the framework and the
+Current test count: 365 passing across the framework and the
 end-to-end scenarios.

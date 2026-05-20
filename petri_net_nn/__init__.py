@@ -55,6 +55,7 @@ from petri_net_nn.compiler import PetriNetModule
 from petri_net_nn.interpretability import (
     AndJoinRule,
     AndJoinRuleCI,
+    Counterfactual,
     XORPartition,
     XORRegion,
     XORRule,
@@ -69,8 +70,10 @@ from petri_net_nn.interpretability import (
     extract_xor_partition,
     extract_xor_rule,
     find_and_join_transitions,
+    find_counterfactual,
     find_xor_groups,
     prose_for_and_join_rule,
+    prose_for_counterfactual,
     prose_for_xor_rule,
 )
 from petri_net_nn.petri_net import PetriNet
@@ -104,6 +107,7 @@ __all__ = [
     "AndJoinSubnet",
     "AndSplitSubnet",
     "Atom",
+    "Counterfactual",
     "CTLResult",
     "EF",
     "EG",
@@ -149,6 +153,7 @@ __all__ = [
     "extract_xor_partition",
     "extract_xor_rule",
     "find_and_join_transitions",
+    "find_counterfactual",
     "find_deadlocks",
     "find_xor_groups",
     "implies",
@@ -163,6 +168,7 @@ __all__ = [
     "place_empty",
     "place_has_token",
     "prose_for_and_join_rule",
+    "prose_for_counterfactual",
     "prose_for_xor_rule",
     "reachability_graph",
     "satisfies",

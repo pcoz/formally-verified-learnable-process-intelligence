@@ -9,6 +9,7 @@ import torch
 
 from petri_net_nn import (
     AndJoinRuleCI,
+    Counterfactual,
     PetriNet,
     PetriNetModule,
     XESEvent,
@@ -24,10 +25,13 @@ from petri_net_nn import (
     extract_xor_partition,
     extract_xor_rule,
     find_and_join_transitions,
+    find_counterfactual,
     find_xor_groups,
+    load_scenario,
     parse_bpmn,
     parse_xes,
     prose_for_and_join_rule,
+    prose_for_counterfactual,
     prose_for_xor_rule,
     swap_event_labels,
     train_on_traces,
@@ -608,3 +612,187 @@ def test_prose_for_and_join_rule_includes_summary():
     text = prose_for_and_join_rule(rule)
     assert "Quorum step" in text
     assert rule.summary in text
+
+
+# ---------------------------------------------------------------------------
+# Phase 13 — counterfactual explanations.
+#
+# The XOR-fixture tests use the same _trained_xor_module() factory
+# the rest of the file uses; the credit-approval test loads the
+# CPN-aware scenario directly and walks through the "what amount
+# would have flipped the decision" question.
+# ---------------------------------------------------------------------------
+
+
+def test_counterfactual_on_xor_fixture_finds_routing_threshold():
+    """The XOR fixture's trained crossover sits near 0.5. A
+    counterfactual that searches the marking channel at the XOR's
+    input place should land on roughly the same number — the
+    binary search is recovering the same routing threshold the
+    rule extractor already reports."""
+    module = _trained_xor_module()
+    transitions = next(
+        ts for p, ts in find_xor_groups(module.net) if p == "p_f0"
+    )
+    # Pick the "above" branch as the target. At the original
+    # marking (risk_score = 0.0) it shouldn't fire; we ask what
+    # value at p_f0 would make it fire.
+    base_marking = {"p_f0": 0.0}
+    cf = find_counterfactual(
+        module,
+        base_marking,
+        flip_place="p_f0",
+        target_transition=transitions[0],
+        search_range=(0.0, 1.0),
+    )
+    # A crossing exists somewhere in [0, 1]; the binary search
+    # should converge.
+    assert cf is not None
+    # The crossing should sit near the XOR's crossover (0.4–0.6
+    # window given the training data and convergence noise).
+    assert 0.2 < cf.counterfactual_input < 0.8
+    # By construction the counterfactual activation should be
+    # near 0.5.
+    assert abs(cf.counterfactual_activation - 0.5) < 0.05
+
+
+def test_counterfactual_returns_none_when_no_crossing_in_range():
+    """If both endpoints of the search range produce activations
+    on the same side of 0.5, no counterfactual exists in that
+    range. The function should return ``None`` rather than
+    invent a crossing."""
+    module = _trained_xor_module()
+    transitions = next(
+        ts for p, ts in find_xor_groups(module.net) if p == "p_f0"
+    )
+    # Narrow the range to a band where the activation stays on
+    # one side of 0.5 — the trained crossover is around 0.5, so
+    # restricting to [0.95, 1.0] should give "above" branch
+    # firing-confidence near 1.0 at both ends.
+    cf = find_counterfactual(
+        module,
+        {"p_f0": 1.0},
+        flip_place="p_f0",
+        target_transition=transitions[0],
+        search_range=(0.95, 1.0),
+    )
+    assert cf is None
+
+
+def test_counterfactual_on_value_channel_recovers_credit_threshold():
+    """On the CPN credit-approval scenario, the trained guard
+    threshold for t_approve sits in the empirical decision band
+    900–1500. A counterfactual that varies the *value* at
+    p_submitted should find that threshold — the same number
+    the rule extractor would report via the structural guard."""
+    ctx = load_scenario(
+        Path(__file__).parent.parent
+        / "examples"
+        / "credit_approval_coloured"
+        / "scenario.toml"
+    )
+    module, _ = ctx.train()
+
+    # Base case: amount = 100 (well below threshold). t_approve
+    # should not fire. The counterfactual asks: what amount would
+    # have got it to approve?
+    cf = find_counterfactual(
+        module,
+        base_marking={"p_submitted": 1.0},
+        base_values={"p_submitted": 100.0},
+        flip_place="p_submitted",
+        target_transition="t_approve",
+        flip_channel="value",
+        search_range=(0.0, 5000.0),
+        # Activation tolerance — when the midpoint's firing
+        # activation is within 0.01 of 0.5 we've found the
+        # crossing. Default interval_tolerance kicks in automatically.
+        tolerance=0.01,
+    )
+    assert cf is not None
+    # The counterfactual should be meaningfully larger than the
+    # base amount (we asked "what amount would have got this
+    # approved") and sit in a plausible range. The exact value is
+    # training-dynamics dependent: it's where the *full* firing
+    # activation (firing sigmoid × guard sigmoid) crosses 0.5, not
+    # where the guard alone crosses 0.5, so depending on how
+    # confidently the firing component fires this number can sit
+    # anywhere between the guard threshold and well above it.
+    assert cf.counterfactual_input > cf.original_input
+    assert 500.0 < cf.counterfactual_input < 5000.0
+    # The activation should sit near 0.5 by construction.
+    assert abs(cf.counterfactual_activation - 0.5) < 0.1
+    # And the base case should genuinely be below threshold.
+    assert cf.original_activation < 0.5
+
+
+def test_counterfactual_dataclass_has_useful_description():
+    """The dataclass's description() should at least name the
+    flipped place, the target transition's label, and the new
+    input value."""
+    cf = Counterfactual(
+        target_transition="t_approve",
+        target_label="approve loan",
+        flipped_place="p_submitted",
+        flipped_channel="value",
+        original_input=100.0,
+        counterfactual_input=1000.0,
+        original_activation=0.05,
+        counterfactual_activation=0.5,
+    )
+    desc = cf.description()
+    assert "approve loan" in desc
+    assert "p_submitted" in desc
+    assert "100.000" in desc
+    assert "1000.000" in desc
+
+
+def test_prose_for_counterfactual_renders_paragraph_with_input_label():
+    """The prose helper should produce a readable paragraph and
+    honour the input_label override for regulator-facing text."""
+    cf = Counterfactual(
+        target_transition="t_approve",
+        target_label="approve loan",
+        flipped_place="p_submitted",
+        flipped_channel="value",
+        original_input=100.0,
+        counterfactual_input=1000.0,
+        original_activation=0.05,
+        counterfactual_activation=0.5,
+    )
+    text = prose_for_counterfactual(cf, input_label="application amount")
+    assert "application amount" in text
+    assert "p_submitted" not in text
+    assert "approve loan" in text
+    # Should mention direction (increased / decreased)
+    assert "increased" in text or "decreased" in text
+
+
+def test_find_counterfactual_rejects_invalid_channel():
+    """A flip_channel other than 'marking' or 'value' is a
+    programmer error — the function should raise rather than
+    silently misbehave."""
+    module = _trained_xor_module()
+    with pytest.raises(ValueError, match="flip_channel"):
+        find_counterfactual(
+            module,
+            {"p_f0": 0.0},
+            flip_place="p_f0",
+            target_transition="t_a",  # dummy
+            flip_channel="bogus",
+        )
+
+
+def test_find_counterfactual_value_channel_requires_base_values():
+    """Passing flip_channel='value' without base_values is a
+    misuse — the search varies an entry of a dict that wasn't
+    supplied."""
+    module = _trained_xor_module()
+    with pytest.raises(ValueError, match="base_values"):
+        find_counterfactual(
+            module,
+            {"p_f0": 0.0},
+            flip_place="p_f0",
+            target_transition="t_a",
+            flip_channel="value",
+        )

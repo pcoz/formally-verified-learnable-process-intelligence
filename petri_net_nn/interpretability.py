@@ -976,3 +976,330 @@ def prose_for_and_join_rule(
         f"The synchronisation step {point.label!r} fires when "
         f"{point.summary}.{ci_clause}{agreement_clause}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 13 — counterfactual explanations.
+#
+# "The model declined this loan; what minimum change to the
+# application amount would have got it approved?" — a counterfactual
+# question is the one a regulator or a customer-facing case worker
+# actually wants answered. It's the "actionable why" complement to
+# the anomaly score's "where did things diverge."
+#
+# Algorithm: binary search the input value at a chosen place
+# (along either the marking channel or the per-token value
+# channel) until the target transition's firing activation crosses
+# the firing threshold (0.5). The crossing point is the
+# counterfactual — the smallest change to that input that would
+# have flipped the outcome.
+#
+# Scope notes:
+#   * We vary one input at a time. Multi-dimensional counterfactuals
+#     (find the minimum joint change to multiple inputs that flips
+#     the outcome) need a non-trivial optimisation; this is a
+#     natural follow-up.
+#   * We assume the target transition's activation is monotonic in
+#     the flipped input — the standard sigmoidal-routing case. If
+#     the activation isn't monotonic (e.g. a soft-guard with a
+#     non-monotone torch_guard), the binary search will find some
+#     crossing point but not necessarily the closest one to the
+#     base value. A monotonicity check is left as a follow-up.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Counterfactual:
+    """A minimal-change explanation: what input value at one place
+    would have flipped a target transition's firing decision.
+
+    Attributes
+    ----------
+    target_transition
+        The transition whose firing is being explained.
+    target_label
+        Human label for ``target_transition``.
+    flipped_place
+        The input place whose value was varied to flip the outcome.
+    flipped_channel
+        Either ``"marking"`` (the place activation) or ``"value"``
+        (the coloured-token value channel — used for CPN routing
+        where the structural guard reads per-token values).
+    original_input
+        The value of ``flipped_place`` in the base scenario.
+    counterfactual_input
+        The value at which ``target_transition``'s firing
+        activation crosses the 0.5 threshold.
+    original_activation
+        Firing activation of ``target_transition`` at
+        ``original_input``.
+    counterfactual_activation
+        Firing activation of ``target_transition`` at
+        ``counterfactual_input``. Should be near 0.5 by
+        construction.
+    """
+
+    target_transition: str
+    target_label: str
+    flipped_place: str
+    flipped_channel: str
+    original_input: float
+    counterfactual_input: float
+    original_activation: float
+    counterfactual_activation: float
+
+    def description(self) -> str:
+        """One-line description suitable for log lines."""
+        return (
+            f"flip {self.target_label!r}: change {self.flipped_place!r} "
+            f"({self.flipped_channel}) from {self.original_input:.3f} "
+            f"to {self.counterfactual_input:.3f}"
+        )
+
+
+def find_counterfactual(
+    module: PetriNetModule,
+    base_marking: dict[str, float],
+    *,
+    flip_place: str,
+    target_transition: str,
+    base_values: dict[str, float] | None = None,
+    flip_channel: str = "marking",
+    search_range: tuple[float, float] = (0.0, 1.0),
+    tolerance: float = 1e-3,
+    interval_tolerance: float | None = None,
+    max_iterations: int = 50,
+) -> Counterfactual | None:
+    """Binary-search the input at ``flip_place`` to find the
+    crossing point where ``target_transition``'s firing activation
+    flips across 0.5.
+
+    Parameters
+    ----------
+    module
+        The trained module to query. Its forward pass is what
+        drives the search.
+    base_marking
+        The starting input marking — the original scenario whose
+        outcome we want to flip. Used to compute the *original*
+        firing activation at ``target_transition``.
+    flip_place
+        The place whose input we vary.
+    target_transition
+        The transition whose firing we want to flip. The
+        counterfactual is the smallest change to ``flip_place``'s
+        value that makes ``target_transition``'s activation cross
+        0.5.
+    base_values
+        Optional CPN value channel for ``module(input_values=...)``.
+        Required when ``flip_channel="value"`` since the search
+        varies an entry of this dict; ignored when
+        ``flip_channel="marking"``.
+    flip_channel
+        ``"marking"`` (default) varies the activation at
+        ``flip_place``; ``"value"`` varies the per-token value
+        the compiled guards read. Use ``"value"`` for
+        coloured-Petri-net scenarios like ``credit_approval_coloured``
+        where the relevant decision quantity is the token value,
+        not the activation.
+    search_range
+        Lower and upper bound for the binary search. For marking
+        channels, the usual [0, 1]; for value channels, the
+        domain of the relevant attribute (e.g. (0, 10000) for
+        loan amounts).
+    tolerance
+        Activation tolerance: stop when the midpoint's firing
+        activation is within this distance of 0.5. Default
+        ``1e-3``, which puts the counterfactual well inside the
+        decision boundary.
+    interval_tolerance
+        Search-interval tolerance: stop when the bracketing
+        interval shrinks below this width. Defaults to
+        ``(search_range[1] - search_range[0]) * 1e-4`` — i.e.
+        four decimal digits of resolution on the input scale.
+        Set explicitly for non-default search ranges if you want
+        a different floor (e.g. ``1.0`` for monetary amounts where
+        finer than £1 doesn't matter).
+    max_iterations
+        Hard cap on bisection iterations — protects against
+        non-monotone activations that won't converge.
+
+    Returns
+    -------
+    Counterfactual | None
+        ``None`` when no crossing exists in ``search_range`` —
+        the activation stays on the same side of 0.5 at both
+        endpoints, meaning a counterfactual within those bounds
+        doesn't exist. Otherwise the ``Counterfactual`` pinning
+        the original-input, counterfactual-input, and activation
+        pair.
+    """
+    if flip_channel not in ("marking", "value"):
+        raise ValueError(
+            f"flip_channel must be 'marking' or 'value', got {flip_channel!r}"
+        )
+    if flip_channel == "value" and base_values is None:
+        raise ValueError(
+            "flip_channel='value' requires base_values to be supplied — "
+            "the counterfactual search varies an entry of that dict"
+        )
+
+    # Pre-compute the original activation by running the module
+    # on the base inputs. This is what the counterfactual is
+    # "flipping away from."
+    original_input = (
+        base_values[flip_place]
+        if flip_channel == "value"
+        else base_marking.get(flip_place, 0.0)
+    )
+    original_activation = _activation(
+        module, base_marking, base_values, target_transition
+    )
+
+    # Probe the two endpoints. If both produce activations on the
+    # same side of 0.5, no crossing exists in the range — bail.
+    lo, hi = search_range
+    lo_act = _activation_with_override(
+        module, base_marking, base_values,
+        flip_place, flip_channel, lo, target_transition,
+    )
+    hi_act = _activation_with_override(
+        module, base_marking, base_values,
+        flip_place, flip_channel, hi, target_transition,
+    )
+    if (lo_act - 0.5) * (hi_act - 0.5) > 0:
+        # Same side — no zero crossing of (activation − 0.5) in
+        # the search range.
+        return None
+
+    # Default the interval tolerance to a fixed fraction of the
+    # search range — works equally well for [0, 1] marking
+    # searches and [0, 10000] value searches without the caller
+    # needing to think about it.
+    if interval_tolerance is None:
+        interval_tolerance = (hi - lo) * 1e-4
+
+    # Bisect: maintain (lo, hi) bracketing the 0.5 crossing.
+    counterfactual_input = 0.5 * (lo + hi)
+    counterfactual_activation = 0.5
+    for _ in range(max_iterations):
+        mid = 0.5 * (lo + hi)
+        mid_act = _activation_with_override(
+            module, base_marking, base_values,
+            flip_place, flip_channel, mid, target_transition,
+        )
+        counterfactual_input = mid
+        counterfactual_activation = mid_act
+        if abs(mid_act - 0.5) < tolerance:
+            break
+        if (hi - lo) < interval_tolerance:
+            break
+        # Keep the side where the activation crosses 0.5. Sign of
+        # (lo_act − 0.5) tells us which bracket retains the
+        # opposite-sign endpoint.
+        if (mid_act - 0.5) * (lo_act - 0.5) < 0:
+            hi, hi_act = mid, mid_act
+        else:
+            lo, lo_act = mid, mid_act
+
+    return Counterfactual(
+        target_transition=target_transition,
+        target_label=module.net.transition_labels.get(
+            target_transition, target_transition
+        ),
+        flipped_place=flip_place,
+        flipped_channel=flip_channel,
+        original_input=float(original_input),
+        counterfactual_input=float(counterfactual_input),
+        original_activation=float(original_activation),
+        counterfactual_activation=float(counterfactual_activation),
+    )
+
+
+def _activation(
+    module: PetriNetModule,
+    base_marking: dict[str, float],
+    base_values: dict[str, float] | None,
+    transition: str,
+) -> float:
+    """Helper: run the module on the supplied inputs and return
+    the firing activation of ``transition`` as a Python float.
+    Wraps the input dicts into the batched torch tensors the
+    forward pass expects."""
+    marking_tensor = {
+        p: torch.tensor([v]) for p, v in base_marking.items()
+    }
+    values_tensor = (
+        {p: torch.tensor([v]) for p, v in base_values.items()}
+        if base_values is not None
+        else None
+    )
+    module.eval()
+    with torch.no_grad():
+        out = module(
+            input_marking=marking_tensor,
+            input_values=values_tensor,
+            batch_size=1,
+        )
+    return float(out[transition][0].item())
+
+
+def _activation_with_override(
+    module: PetriNetModule,
+    base_marking: dict[str, float],
+    base_values: dict[str, float] | None,
+    flip_place: str,
+    flip_channel: str,
+    new_value: float,
+    transition: str,
+) -> float:
+    """Helper: like :func:`_activation` but substitutes
+    ``new_value`` for ``flip_place``'s entry in the appropriate
+    channel before the forward pass. Used by the binary search
+    inner loop."""
+    if flip_channel == "marking":
+        new_marking = dict(base_marking)
+        new_marking[flip_place] = new_value
+        new_values = base_values
+    else:
+        new_marking = base_marking
+        new_values = dict(base_values or {})
+        new_values[flip_place] = new_value
+    return _activation(module, new_marking, new_values, transition)
+
+
+def prose_for_counterfactual(
+    cf: Counterfactual,
+    *,
+    input_label: str | None = None,
+) -> str:
+    """Render a counterfactual as a paragraph in plain English.
+
+    Parameters
+    ----------
+    cf
+        The :class:`Counterfactual` to describe.
+    input_label
+        Optional human-readable name for the flipped input.
+        Useful when the place id is something like
+        ``p_application`` but the regulator-facing prose wants
+        *"application amount"*.
+    """
+    label = input_label or cf.flipped_place
+    direction = (
+        "increased" if cf.counterfactual_input > cf.original_input
+        else "decreased"
+    )
+    activation_change = (
+        "would have started firing"
+        if cf.counterfactual_activation > cf.original_activation
+        else "would have stopped firing"
+    )
+    return (
+        f"To flip the outcome at {cf.target_label!r}, the input "
+        f"{label} would need to be {direction} from "
+        f"{cf.original_input:.3f} to {cf.counterfactual_input:.3f}. "
+        f"At that point the step {activation_change} (activation "
+        f"changes from {cf.original_activation:.3f} to "
+        f"{cf.counterfactual_activation:.3f})."
+    )

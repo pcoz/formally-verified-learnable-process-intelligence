@@ -758,9 +758,25 @@ Phase 8 distills XOR routing rules and AND-join quorum rules out of
 trained weights. That's a start. Real decision-support deployments
 need more.
 
-- [ ] **Counterfactual explanations.** "The model approved this
-  loan; what would the applicant have needed to change to be
-  declined?" Useful for compliance and customer-facing decisions.
+- [x] **Counterfactual explanations.** `find_counterfactual(module,
+  base_marking, *, flip_place, target_transition, ...)` binary-
+  searches the input at one place to find the boundary at which
+  the target transition's firing activation crosses 0.5. Supports
+  both the marking channel (`flip_channel="marking"`) and the
+  coloured-token value channel (`flip_channel="value"`, for CPN
+  scenarios where the structural guard reads per-token values).
+  Returns a `Counterfactual` bundling the target transition, the
+  flipped input place and channel, original vs counterfactual
+  input values, and original vs counterfactual activations.
+  `prose_for_counterfactual(cf, *, input_label=None)` renders the
+  result as a paragraph with directional language ("would need to
+  be increased / decreased") and an optional input-label override
+  for regulator-facing prose. Separate activation and interval
+  tolerances let the search converge cleanly on both small-range
+  (marking-channel [0, 1]) and large-range (value-channel [0,
+  10000]) inputs. The "what would have flipped this decision"
+  question — the actionable complement to anomaly scores — is now
+  a one-call answer.
 - [x] **Confidence intervals on extracted rules.** Bootstrap the
   training and report the distribution of crossover thresholds /
   AND-join quorum thresholds. `bootstrap_xor_rule(factory, traces,

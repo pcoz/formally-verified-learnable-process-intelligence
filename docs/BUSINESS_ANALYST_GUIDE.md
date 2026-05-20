@@ -530,6 +530,52 @@ substitute a domain term (*"application amount"*) for the raw
 internal place id (*"p_application"*) — important for
 documents that go outside the engineering team.
 
+### Counterfactual explanations
+
+The CI tells you how stable the *rule* is. The next question a
+customer-facing case worker or a regulator might ask is about a
+*specific* decision: **"The model declined this loan. What would
+the applicant have needed to change to be approved?"**
+
+PETRA answers this with **counterfactual analysis**. Given a
+trained model, a specific input scenario, and a target step
+whose outcome you want to flip, the analysis binary-searches
+one input attribute (e.g. *application amount*, *risk score*,
+*credit limit*) to find the smallest change that would have
+flipped the firing of that step.
+
+For the credit-approval scenario, asking *"what amount would
+have got this £100 application approved?"* returns something like:
+
+> *To flip the outcome at* approve loan, *the input application
+> amount would need to be increased from 100.000 to 1024.000. At
+> that point the step would have started firing (activation
+> changes from 0.05 to 0.50).*
+
+The answer is *grounded in the trained model* — not a hand-set
+threshold, not a stipulated rule. It tells the case worker the
+specific number, in the relevant domain unit, that would have
+flipped this specific instance.
+
+### Why counterfactuals matter
+
+Three audiences use this directly:
+
+- **Customers and applicants.** *"Your application was declined
+  because your amount of £100 is below the £1,024 boundary the
+  model has learned. If your eligible amount were at or above
+  that, the decision would have been to approve."* — auditable,
+  actionable, individual-level.
+- **Compliance officers.** Counterfactuals on flagged anomalies
+  ("the credit-check step didn't fire — what input value would
+  have triggered it?") localise the analysis to a single
+  pivotable input rather than a vague heuristic.
+- **Regulators.** A counterfactual is testable: change the input,
+  re-run the model, observe the documented outcome. Together with
+  CIs on the underlying rule, it's the form of explanation modern
+  model-risk regimes (e.g. SR 11-7 in the US, PRA SS1/23 in the
+  UK) require.
+
 ---
 
 ## 14. Spotting traces that don't fit
@@ -929,6 +975,7 @@ A short reference for the terms used in this guide.
 | **BPMN** | Business Process Model and Notation — the standard visual notation for business processes. |
 | **Coloured Petri net (CPN)** | A Petri net where each token carries a value. PETRA supports a scalar form. |
 | **Cost-ranked refactoring** | Choosing between provably-equivalent process variants by realised-execution cost. |
+| **Counterfactual** | An explanation that says what specific input change would have flipped a model's decision on a specific instance. *"If the amount had been £1,024 instead of £100, the loan would have been approved."* |
 | **CTL** (Computation Tree Logic) | A temporal logic for asking questions about how a process unfolds over time: *eventually*, *always*, *on every path*, *on some path*. |
 | **Deadlock** | A reachable state with no enabled transitions and not the intended final state — the process is stuck. |
 | **Firing** | The event of a transition consuming input tokens and producing output tokens. |
