@@ -68,6 +68,12 @@ events = ["task_a", "task_b"]
 p_x = { attribute = "signal" }   # take the trace's "signal" attribute
 p_y = { constant = 0.5 }         # pin to a constant
 
+[training.input_values]
+# Optional. Coloured-Petri-net value channel — same spec form as
+# input_marking but feeds the per-token value the compiler reads
+# through structural guards (see §3.3).
+p_x = { attribute = "amount" }
+
 [training]
 steps = 1500
 lr = 0.1
@@ -89,6 +95,7 @@ extract_and_join_rules = false
 | `compile()` | `PetriNetModule` | Build the module with config training params; seeds torch first. |
 | `train(module=None)` | `(PetriNetModule, list[float])` | Compile if needed and run `train_on_traces`. |
 | `attribute_to_marking(trace)` | `dict[str, float]` | Resolve the config's input-marking spec for a single trace. |
+| `attribute_to_values(trace)` | `dict[str, float]` | Resolve the config's `[training.input_values]` spec — the coloured-token value channel the compiler reads through structural guards. |
 | `extract_rules(module)` | `dict[str, list]` | Run XOR / AND-join rule extraction per `[interpretability]` toggles. |
 | `anomaly_score(module, trace)` | `dict[str, float]` | Per-transition residuals for one trace. |
 
@@ -174,14 +181,38 @@ resulting activation by ``(1 − a(p))`` for each inhibitor place;
 transition durations buffer the activation for D−1 time-unrolled
 steps before it contributes to downstream places.
 
+**Coloured-Petri-net layer.** When a transition has a structural
+guard declared as ``{place, op, value}`` (TOML form, or via
+``add_transition(..., structural_guard=...)``), the compiler builds
+one learnable ``nn.Parameter`` threshold per guarded transition —
+seeded at the TOML value, refined by training. A soft sigmoid
+gate multiplies the transition's firing strength:
+
+    soft_guard(t) = σ( sharpness · scale(t) · sign(op) · ( value(place) − θ_guard(t) ) )
+
+with ``sign(op) = +1`` for ``>``/``>=`` and ``−1`` for ``<``/``<=``,
+and ``scale(t) = 1 / max(|θ_init|, 1.0)`` so the sigmoid's gradient
+is O(1) at the boundary regardless of the value units the modeller
+used. The forward pass carries a parallel per-place *value*
+channel alongside activations: source-place values come from the
+new ``input_values`` argument (default 1.0); non-source places get
+an activation-weighted average of contributing transitions'
+output-arc values (``arc_output_values`` constants only — callable
+transforms stay token-game-only). Equality / inequality guards
+must be expressed as opaque callables and are not trainable; only
+inequality guards take part in training. The thresholds train
+end-to-end with the rest of the network, so the model can refine
+the declared boundary from execution traces — see the
+`credit_approval_coloured` scenario.
+
 ### 3.4 `traces.py` — training and anomaly scoring
 
 ```python
 from petri_net_nn import train_on_traces, anomaly_score, SharpnessScheduler, sweep_trace_count
 ```
 
-- `train_on_traces(module, traces, *, attribute_to_marking, steps, lr, transitions=None)` — main training loop.
-- `anomaly_score(module, trace, *, attribute_to_marking)` — per-transition residual dict.
+- `train_on_traces(module, traces, *, attribute_to_marking, attribute_to_values=None, steps, lr, transitions=None)` — main training loop. Pass `attribute_to_values` to feed the per-token value channel that trains structural-guard thresholds.
+- `anomaly_score(module, trace, *, attribute_to_marking, attribute_to_values=None)` — per-transition residual dict.
 - `trace_anomaly_score(module, trace, ...)` — scalar trace-level score.
 - `auc(positive_scores, negative_scores)` — Mann-Whitney U / ROC AUC.
 - `SharpnessScheduler(module, *, start, end, num_steps, kind)` — anneal sharpness over training.
@@ -280,7 +311,7 @@ Current scenarios:
 | `resource_lock/` | Phase 9 inhibitor arcs: two clients race for a single shared resource. |
 | `paint_shop/` | Phase 9 transition durations: a 3-step cure transition delays output. |
 | `priority_dispatch/` | Phase 9 stochastic firing rates: three handlers with rate priors. |
-| `credit_approval_coloured/` | Phase 9 coloured tokens: routing on the application amount carried by the token. |
+| `credit_approval_coloured/` | Phase 9 coloured tokens plus the CPN-aware compiler: routing on the application amount carried by the token, with the guard threshold learned from trace data. |
 | `incident_management/` | Phase 10 — trains on the **real BPI Challenge 2013** incidents log (7,554 Volvo IT tickets), the actual public dataset. |
 | `cost_ranked_refactoring/` | Provably-safe refactoring via Phase 2 + `expected_cost`. |
 
@@ -380,5 +411,5 @@ python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
 
-Current test count: 210 passing across the framework and seven
+Current test count: 295 passing across the framework and the
 end-to-end scenarios.

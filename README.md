@@ -23,25 +23,46 @@ equivalent variants by realised-execution cost.
 
 Any **finite-state, terminating, discrete-event system** for which
 you have **observable execution traces of multiple instances**. That
-class is much larger than it sounds. The included scenarios
-demonstrate it on:
+class is much larger than it sounds — it covers business processes,
+distributed-system protocols, manufacturing lines, laboratory
+recipes, signalling pathways, multi-agent coordination, IT incident
+management, and anything else whose state changes at identifiable
+moments and whose runs you can record. The 13 scenarios shipped in
+`examples/` make this concrete:
 
-- **Business processes** (loan approval, with cost-ranked variant
-  refactoring)
-- **Distributed-system protocols** (two-phase commit; TCP 3-way
-  handshake with attack-pattern anomaly detection)
-- **Multi-agent coordination** (contract-net with bid-driven
-  contractor selection)
-- **Manufacturing and supply-chain workflows** (multi-station
-  production line with quality-gated routing)
-- **Laboratory and clinical protocols** (PCR with deviation analysis)
-- **Cell-biology signalling pathways** (kinase cascade with
-  attribute-conditioned pathway routing)
+- **Business processes.** Loan approval with cost-ranked variant
+  refactoring (provably-equivalent variants ranked by realised
+  execution cost); credit approval where the per-application amount
+  travels with the token and the approve/decline threshold is
+  *learned from data* rather than hand-set; real IT incident
+  management trained on the BPI Challenge 2013 dataset (7,554 Volvo
+  IT tickets, the actual public log).
+- **Distributed-system protocols.** Two-phase commit with Byzantine
+  commit-after-low-vote anomaly detection; TCP 3-way handshake
+  compiled from the RFC, with SYN-flood and half-open attack
+  patterns flagged as anomalies.
+- **Multi-agent coordination.** Three-pool contract-net with
+  bid-driven contractor selection; pre-bid award flagged as a
+  protocol violation.
+- **Manufacturing and supply-chain workflows.** Multi-station
+  production line with quality-gated rework routing; paint-shop
+  cure step modelled as a multi-step transition duration;
+  bottle-to-crate batching via multi-token arc multiplicities.
+- **Operational coordination patterns.** Priority-driven dispatch
+  across three handlers with declared rate priors that training
+  refines; mutex on a shared resource enforced via inhibitor arcs.
+- **Laboratory and clinical protocols.** PCR with deviation
+  analysis flagging skipped quality gates.
+- **Cell-biology signalling pathways.** Kinase cascade with
+  strength-conditioned fast/slow pathway routing, with the routing
+  rule distilled in pathway vocabulary.
 
-The framework also covers (not built as scenarios but covered by the
-same primitives): state machines in embedded software, regulatory
-and compliance workflows, games with bounded state, contract /
-treaty / agreement workflows, scientific data pipelines, RPA scripts.
+The same primitives cover more ground than the shipped scenarios
+exercise: state machines in embedded software, regulatory and
+compliance workflows, games with bounded state, contract / treaty
+/ agreement workflows, scientific data pipelines, RPA scripts. If
+your problem fits the four properties in the next section, the
+substrate fits it too.
 
 ## Where PETRA fits well
 
@@ -111,7 +132,7 @@ question over the same Petri-net structure:
 
 | Tool | What it's best at | Where PETRA differs |
 |---|---|---|
-| **CPN Tools** (Aarhus) | Reference implementation of Coloured Petri Nets — full ML-style colour-set typing, state-space verification, mature GUI simulator. | CPN Tools verifies a *given* CPN; PETRA *trains* a model of how the net's transitions are actually used from execution traces. CPN Tools' colour sets are far richer than PETRA's CPN-lite scalar token values. |
+| **CPN Tools** (Aarhus) | Reference implementation of Coloured Petri Nets — full ML-style colour-set typing, state-space verification, mature GUI simulator. | CPN Tools verifies a *given* CPN; PETRA *trains* a model of how the net's transitions are actually used from execution traces, including learning guard thresholds from per-token values rather than taking them as given. CPN Tools' colour sets are far richer than PETRA's CPN-lite scalar token values. |
 | **GreatSPN** (Turin) | Generalised Stochastic Petri Nets — exponentially-distributed firing times, analytical CTMC throughput, performance bounds. | GreatSPN gives closed-form stationary throughput under a stipulated rate model; PETRA's stochastic rates are compiler-level multipliers used during training. Different question. |
 | **TINA** (LAAS-CNRS) | Time Petri nets with intervals, state-space exploration, integrated CTL/LTL model checking via NuSMV. | TINA proves temporal-logic invariants about the *specified* behaviour; PETRA learns how the deployed system actually behaves and flags deviations. Phase 11 of the PETRA roadmap aims to wire model checking in directly. |
 | **ProM** (Eindhoven) | Process mining — Alpha / Inductive / Heuristics miners discover a Petri net from execution logs; conformance checking; large plugin ecosystem. | ProM does *structure discovery* from logs (Phase 12 of PETRA's roadmap, not yet built). The two are a natural pair: ProM discovers, PETRA trains dynamics on the result. |
@@ -206,7 +227,7 @@ docs/                 # all longer-form documentation
 ## Running tests
 
 ```
-python -m pytest                          # full suite (~210 tests)
+python -m pytest                          # full suite (~295 tests)
 python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```

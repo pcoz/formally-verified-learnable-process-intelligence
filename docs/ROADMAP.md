@@ -549,17 +549,29 @@ systems. This phase fixes that.
   demonstrates a bottle-to-crate transition with input weight 6: the
   transition waits for six tokens to accumulate before firing,
   exactly as a real packaging line works.
-- [x] **Coloured Petri nets** *(CPN-lite — structural layer)*.
+- [x] **Coloured Petri nets** *(CPN-lite — structural layer + CPN-aware compiler)*.
   Tokens carry a scalar value; transitions can have guards that
   read input-token values; output arcs can specify the value the
   produced token carries (constant or callable). The
   `credit_approval_coloured` scenario routes loan applications on
   the *amount* carried by the token, with `t_approve` and
   `t_decline` guards declared in TOML (`{place, op, value}` form).
-  The compiler stays scalar in this first delivery — CPN-aware
-  compiler integration (the trained network reading per-token
-  values and routing on them during training) is the natural
-  follow-up.
+  The compiler now reads these guards too: each structural guard
+  contributes a learnable `nn.Parameter` threshold seeded at the
+  TOML value, and a sigmoid soft-gate multiplies the transition's
+  firing strength by `sign(op) · (value(place) − threshold)` with
+  per-guard sharpness auto-scaled by `1 / max(|θ_init|, 1.0)` so
+  gradients at the boundary stay O(1) in any unit. The forward
+  pass carries a parallel per-place value channel through both
+  acyclic and time-unrolled modes; `train_on_traces` /
+  `anomaly_score` gain `attribute_to_values` for the value channel,
+  and `ScenarioContext` reads it from `[training.input_values]`
+  in TOML. The credit-approval scenario trains both seeded
+  thresholds into the empirical decision band (900–1500) from the
+  hand-set 1000 and routes held-out values correctly under the
+  soft guards. Callable guards and callable arc-output-value
+  transforms stay token-game-only — turning a Python callable into
+  a torch-friendly transform is separate work.
 - [x] **Inhibitor arcs.** Declarative "fire only when this place is
   empty" guards. The compiler implements them as a multiplicative
   `(1 - a(p))` gate after firing. The `resource_lock` scenario uses
