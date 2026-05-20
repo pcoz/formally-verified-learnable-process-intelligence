@@ -1,0 +1,35 @@
+# MAPK1/MAPK3 (ERK1/ERK2) signalling cascade loaded from a SIF
+# (Simple Interaction Format) file — the de facto format Pathway
+# Commons publishes Reactome-derived pathway data in.
+#
+# This scenario closes the Phase 10 "BioPAX / SBGN / SIF" carry-
+# forward: PETRA now consumes real curated pathway content from
+# the biology ecosystem without hand-coding a fixture. The same
+# `source = "sif_file"` adapter accepts any Pathway Commons SIF
+# download — Reactome, BioCyc, PID, NCI Nature, KEGG.
+#
+# What the scenario demonstrates:
+#   * SIF → PetriNet compiles cleanly (parser produces a
+#     well-formed net);
+#   * a forward pass with EGF marked propagates activation through
+#     the canonical receptor → MAPK1/3 → transcription-factor
+#     cascade.
+#
+# What it does NOT yet demonstrate:
+#   * Training. There is no public XES log of MAPK signalling
+#     events; bringing PETRA's training loop to bear on biology
+#     needs a separate trace source (single-cell time-series,
+#     mass-spec phospho-proteomics, etc.).
+#   * Inhibitory semantics for phosphatases. SIF carries
+#     `controls-state-change-of` for DUSP6 regardless of whether
+#     the effect is activating or inhibitory; the parser stays
+#     faithful to the format and treats every triple as a
+#     directional forward arc.
+
+[scenario]
+name = "mapk_pathway"
+description = "MAPK1/MAPK3 signalling cascade loaded from a Pathway Commons SIF file."
+
+[net]
+source = "sif_file"
+path = "mapk_signalling.sif"

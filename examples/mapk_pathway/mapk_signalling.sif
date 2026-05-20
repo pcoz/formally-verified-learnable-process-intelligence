@@ -1,0 +1,30 @@
+# MAPK1/MAPK3 (ERK1/ERK2) signalling cascade — a curated slice
+# of the canonical EGF → ERK signalling pathway.
+#
+# Entity symbols follow HGNC; interaction types follow the
+# Pathway Commons v14 schema documented at
+# https://www.pathwaycommons.org/.
+#
+# A real Pathway Commons SIF download (e.g. from
+# https://www.pathwaycommons.org/archives/PC2/) can replace this
+# file without any code changes — the scenario reads SIF, not
+# a hand-coded fixture.
+
+EGF	in-complex-with	EGFR
+EGFR	in-complex-with	GRB2
+GRB2	in-complex-with	SOS1
+SOS1	controls-state-change-of	HRAS
+HRAS	controls-state-change-of	RAF1
+RAF1	controls-phosphorylation-of	MAP2K1
+RAF1	controls-phosphorylation-of	MAP2K2
+MAP2K1	controls-phosphorylation-of	MAPK1
+MAP2K1	controls-phosphorylation-of	MAPK3
+MAP2K2	controls-phosphorylation-of	MAPK1
+MAP2K2	controls-phosphorylation-of	MAPK3
+MAPK1	controls-phosphorylation-of	ELK1
+MAPK3	controls-phosphorylation-of	ELK1
+MAPK1	controls-phosphorylation-of	RPS6KA1
+MAPK3	controls-phosphorylation-of	RPS6KA1
+ELK1	controls-expression-of	FOS
+DUSP6	controls-state-change-of	MAPK1
+DUSP6	controls-state-change-of	MAPK3

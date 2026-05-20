@@ -17,6 +17,7 @@ from petri_net_nn.bisimulation import (
 )
 from petri_net_nn.bpmn import parse_bpmn
 from petri_net_nn.pnml import parse_pnml, to_pnml
+from petri_net_nn.sif import parse_sif
 from petri_net_nn.compiler import PetriNetModule
 from petri_net_nn.interpretability import (
     AndJoinRule,
@@ -90,6 +91,7 @@ __all__ = [
     "load_scenario",
     "parse_bpmn",
     "parse_pnml",
+    "parse_sif",
     "parse_xes",
     "reachability_graph",
     "shuffle_events",

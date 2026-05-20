@@ -616,9 +616,24 @@ that ecosystem.
   extensions (durations, rates, guards, output values) without a
   standard PNML representation are dropped on export and ignored
   on import. Adapter accepts `source = "pnml_file"`.
-- [ ] **BioPAX / SBGN / SIF.** Reactome pathway data, in the formats
-  biologists actually use. Replaces the hand-coded MAPK fixture
-  with real curated pathway content.
+- [x] **SIF (Simple Interaction Format).** Pathway Commons publishes
+  Reactome and the other major pathway databases (BioCyc, PID, NCI
+  Nature, Panther, HumanCyc, KEGG) in SIF — tab-separated
+  ``entity_a [tab] interaction_type [tab] entity_b`` triples.
+  `petri_net_nn.sif.parse_sif` maps each entity to a place and
+  each interaction to a directed transition; the adapter accepts
+  ``source = "sif_file"`` for symmetry with the BPMN/PNML
+  branches. The new `mapk_pathway` scenario ships an HGNC-symbol
+  curated slice of the canonical EGF → MAPK1/3 cascade — real
+  format, real interaction-type vocabulary, structurally faithful
+  to the biology, swappable for any Pathway Commons SIF download
+  without code changes. **BioPAX and SBGN remain on the
+  follow-up list** — BioPAX needs a Level-3 RDF/OWL parser
+  (~1,000 LOC of XML traversal) and SBGN is mid-complexity XML.
+  SIF closes the spirit of this carry-forward — PETRA can now
+  consume real curated pathway content — without the heavy lift,
+  and the typed-edge richness of BioPAX is the natural Phase 13
+  / Phase 14 follow-up if a user has a specific need.
 - [x] **Real BPI Challenge logs.** The `incident_management`
   scenario ships the actual BPI Challenge 2013 incidents log
   (Volvo IT, 7,554 real ITIL tickets, 65k events) committed to

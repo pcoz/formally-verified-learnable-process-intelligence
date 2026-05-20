@@ -89,6 +89,7 @@ from petri_net_nn.interpretability import (
 )
 from petri_net_nn.petri_net import PetriNet
 from petri_net_nn.pnml import parse_pnml
+from petri_net_nn.sif import parse_sif
 from petri_net_nn.traces import anomaly_score, train_on_traces
 from petri_net_nn.xes import XESEvent, XESTrace, parse_xes
 
@@ -328,6 +329,15 @@ def _load_net(spec: dict[str, Any], config_dir: Path) -> PetriNet:
         if not path_value:
             raise ValueError("net.source='pnml_file' requires 'path'")
         return parse_pnml(_resolve(path_value, config_dir))
+    if source == "sif_file":
+        # SIF is the de facto biology-pathway format published by
+        # Pathway Commons (Reactome, BioCyc, PID, …). Each entity
+        # becomes a place; each interaction triple becomes a
+        # directed transition.
+        path_value = spec.get("path")
+        if not path_value:
+            raise ValueError("net.source='sif_file' requires 'path'")
+        return parse_sif(_resolve(path_value, config_dir))
     if source == "inline":
         net = PetriNet()
         for place in spec.get("places", []):
@@ -381,8 +391,8 @@ def _load_net(spec: dict[str, Any], config_dir: Path) -> PetriNet:
             net.add_inhibitor_arc(inh["place"], inh["transition"])
         return net
     raise ValueError(
-        f"net.source must be 'bpmn_file', 'pnml_file', or 'inline', "
-        f"got {source!r}"
+        f"net.source must be 'bpmn_file', 'pnml_file', 'sif_file', or "
+        f"'inline', got {source!r}"
     )
 
 

@@ -39,7 +39,7 @@ name = "..."             # human-readable identifier
 description = "..."      # optional
 
 [net]
-source = "inline"        # or "bpmn_file"
+source = "inline"        # or "bpmn_file", "pnml_file", "sif_file"
 # ---- inline form ----
 [[net.places]]
 id = "p_x"
@@ -336,6 +336,7 @@ Current scenarios:
 | `priority_dispatch/` | Phase 9 stochastic firing rates: three handlers with rate priors. |
 | `credit_approval_coloured/` | Phase 9 coloured tokens plus the CPN-aware compiler: routing on the application amount carried by the token, with the guard threshold learned from trace data. |
 | `incident_management/` | Phase 10 — trains on the **real BPI Challenge 2013** incidents log (7,554 Volvo IT tickets), the actual public dataset. |
+| `mapk_pathway/` | Phase 10 — loads a Pathway Commons-style SIF of the MAPK1/3 (ERK1/2) signalling cascade and runs a forward pass through the EGF → MAPK → transcription-factor flow. |
 | `cost_ranked_refactoring/` | Provably-safe refactoring via Phase 2 + `expected_cost`. |
 
 ---
@@ -434,5 +435,5 @@ python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
 
-Current test count: 295 passing across the framework and the
+Current test count: 313 passing across the framework and the
 end-to-end scenarios.

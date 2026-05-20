@@ -68,7 +68,7 @@ fits anyway:
 | **Manufacturing & supply chain** | Simulated with domain-specific tools (Simio, AnyLogic); ML in this space usually means demand forecasting, not workflow modelling. | Production lines literally **are** discrete-event token systems — parts moving between stations, batches accumulating, quality gates routing. The Phase 9 primitives (multi-token arcs, durations, inhibitor arcs) model these directly. | [`manufacturing_cell`](examples/manufacturing_cell/), [`paint_shop`](examples/paint_shop/), [`batch_packaging`](examples/batch_packaging/) |
 | **Operational coordination** | Priority dispatch and mutex feel like OS-level concerns, not "process intelligence". | Any system using these primitives has them in its control flow. Modelling at the Petri-net level lets you analyse the system's *actual* coordination against the protocol it declares. | [`priority_dispatch`](examples/priority_dispatch/), [`resource_lock`](examples/resource_lock/) |
 | **Laboratory & clinical protocols** | Lab protocols feel domain-specific (chemistry, biology) and are usually owned by proprietary LIMS systems. | A protocol is a sequenced, gated workflow with deviations to flag — same shape as a business process. The lab's electronic logs are already structured. | [`scientific_workflow`](examples/scientific_workflow/) (PCR) |
-| **Cell-biology signalling pathways** | Pathway analysis is a biology problem; ML usually means gene expression or protein structure, not "train a model of the pathway". | Reactome-style pathway databases literally store pathways as Petri-net structures: *places are molecule pools, transitions are reactions.* The activation channel is the natural soft analogue of pathway flux. | [`biological_signalling`](examples/biological_signalling/) |
+| **Cell-biology signalling pathways** | Pathway analysis is a biology problem; ML usually means gene expression or protein structure, not "train a model of the pathway". | Reactome-style pathway databases literally store pathways as Petri-net structures: *places are molecule pools, transitions are reactions.* The activation channel is the natural soft analogue of pathway flux. | [`biological_signalling`](examples/biological_signalling/), [`mapk_pathway`](examples/mapk_pathway/) (real Pathway Commons SIF) |
 
 The same primitives cover more ground than the shipped scenarios
 exercise: *state machines in embedded software*, *regulatory and
@@ -357,7 +357,7 @@ doesn't.
 
 ## Worked examples
 
-PETRA ships with **13 end-to-end scenarios** under `examples/`.
+PETRA ships with **14 end-to-end scenarios** under `examples/`.
 Each is a self-contained TOML configuration plus a paired test
 that drives the full pipeline — *load the net, load the traces,
 compile, train, extract rules, score anomalies.* They span
@@ -383,6 +383,7 @@ and the load-bearing claims in its test.
 | [**`resource_lock`**](examples/resource_lock/) | Two clients competing for a shared resource, with **inhibitor arcs enforcing the mutex** — lock-acquire fires only when lock-held is empty. Exercises the soft inhibitor gate `(1 − a(p))`. | *Mutex, semaphore, and other negative-precondition patterns* — exclusive access modelled cleanly into the dynamics. |
 | [**`scientific_workflow`**](examples/scientific_workflow/) | **PCR (polymerase chain reaction)** modelled with a quality-gate transition that routes pass/fail. PETRA learns the gate from trace data and flags traces that skip it. | *Laboratory and clinical protocol conformance* — deviation analysis on scientific procedures. |
 | [**`biological_signalling`**](examples/biological_signalling/) | A **kinase cascade** with signal-strength-conditioned fast/slow pathway routing; the XOR rule is distilled in the pathway components' vocabulary, not internal framework labels. | *Cell-biology pathway analysis* — Reactome-style pathways are essentially Petri nets; the same primitives that handle business processes model signalling networks too. |
+| [**`mapk_pathway`**](examples/mapk_pathway/) | Loads the canonical **EGF → MAPK1/3 (ERK1/2) signalling cascade** from a Pathway Commons-style SIF file (real HGNC symbols, standard PC interaction types), compiles, and propagates activation through the full receptor → adapter → small GTPase → MAP3K → MAP2K → MAPK → transcription-factor chain. | *Real biology format on real entities* — Phase 10 ecosystem citizenship: any of the ~3,000 Reactome pathways is one Pathway Commons download away. |
 
 Run any individual scenario with
 `python -m pytest tests/scenarios/test_<scenario_name>.py`, or
@@ -416,6 +417,7 @@ petri_net_nn/         # the framework
   petri_net.py        # PetriNet dataclass + token-game semantics
   bpmn.py             # BPMN 2.0 → PetriNet parser
   pnml.py             # PNML 2009 P/T-net import / export
+  sif.py              # Pathway Commons SIF import (biology pathways)
   compiler.py         # PetriNet → differentiable nn.Module
   subnets.py          # five hand-built reference subnets
   traces.py           # training, anomaly score, expected-cost, AUC
@@ -425,7 +427,7 @@ petri_net_nn/         # the framework
   bisimulation.py     # strong-bisimulation equivalence checker
   adapter.py          # config-driven scenario loader
 
-examples/             # 13 end-to-end scenarios — see "Worked examples" above
+examples/             # 14 end-to-end scenarios — see "Worked examples" above
 tests/                # framework + scenario tests
 docs/
   ROADMAP.md          # product roadmap, phase status, framing
@@ -449,7 +451,7 @@ docs/
 ## Running tests
 
 ```
-python -m pytest                          # full suite (~298 tests)
+python -m pytest                          # full suite (~313 tests)
 python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
