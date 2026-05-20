@@ -88,7 +88,7 @@ rest = [
 Homepage = "https://fleetingswallow.com"
 Repository = "https://github.com/pcoz/formally-verified-learnable-process-intelligence"
 Documentation = "https://github.com/pcoz/formally-verified-learnable-process-intelligence#readme"
-Changelog = "https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/CHANGELOG.md"
+Changelog = "https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/docs/CHANGELOG.md"
 
 # Command-line entry points — pip install petra-nn drops these on
 # the user's PATH. The `petra` umbrella exposes all three

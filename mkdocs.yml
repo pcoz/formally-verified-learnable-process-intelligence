@@ -62,6 +62,7 @@ nav:
   - Developer Manual: DEV_MANUAL.md
   - Integration Patterns: INTEGRATION_PATTERNS.md
   - Roadmap: ROADMAP.md
+  - Changelog: CHANGELOG.md
   - API Reference:
       - Overview: api/index.md
       - PetriNet (data model): api/petri_net.md
