@@ -1,16 +1,18 @@
 # PEP 517 / 518 / 621 build configuration for PETRA.
 #
-# Distribution name on PyPI is "petra"; the importable Python package
-# is "petri_net_nn" (matches the directory layout). Version is
-# read dynamically from petri_net_nn.__version__ so there is one
-# source of truth.
+# Distribution name on PyPI is "petra-nn"; the importable Python
+# package is "petri_net_nn" (matches the directory layout). The
+# bare "petra" name was already reserved on PyPI when this package
+# was registered, so the distribution adopted the hyphenated form
+# instead. Version is read dynamically from
+# petri_net_nn.__version__ so there is one source of truth.
 
 [build-system]
 requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "petra"
+name = "petra-nn"
 dynamic = ["version"]
 description = "Petri-Net Trained Architecture — formally-verified learnable process intelligence"
 readme = "README.md"
@@ -50,7 +52,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Development extras — install with: pip install petra[dev]
+# Development extras — install with: pip install petra-nn[dev]
 dev = [
     "pytest>=7",
 ]

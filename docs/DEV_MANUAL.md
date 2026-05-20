@@ -13,11 +13,12 @@ extension point is added.
 Install from PyPI (Python 3.11+):
 
 ```
-pip install petra
+pip install petra-nn
 ```
 
-The distribution name is `petra`; the import name is
-`petri_net_nn` (matches the source layout). The fastest path:
+The distribution name is `petra-nn` (the bare `petra` was
+already taken on PyPI); the import name is `petri_net_nn`
+(matches the source layout). The fastest path:
 write a TOML config and use the adapter.
 
 ```python

@@ -18,7 +18,7 @@
 #    the existing project).
 #
 # 3. Fill in:
-#       PyPI project name:    petra
+#       PyPI project name:    petra-nn
 #       Owner:                pcoz
 #       Repository name:      formally-verified-learnable-process-intelligence
 #       Workflow filename:    publish.yml

@@ -1,7 +1,7 @@
 # PETRA
 
-[![PyPI](https://img.shields.io/pypi/v/petra.svg)](https://pypi.org/project/petra/)
-[![Python](https://img.shields.io/pypi/pyversions/petra.svg)](https://pypi.org/project/petra/)
+[![PyPI](https://img.shields.io/pypi/v/petra-nn.svg)](https://pypi.org/project/petra-nn/)
+[![Python](https://img.shields.io/pypi/pyversions/petra-nn.svg)](https://pypi.org/project/petra-nn/)
 [![tests](https://github.com/pcoz/formally-verified-learnable-process-intelligence/actions/workflows/test.yml/badge.svg)](https://github.com/pcoz/formally-verified-learnable-process-intelligence/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -406,7 +406,7 @@ the whole set with `python -m pytest tests/scenarios/`.
 ## Quick start
 
 ```
-pip install petra
+pip install petra-nn
 ```
 
 Requires Python 3.11+ and brings `torch` in as a dependency.
@@ -422,10 +422,11 @@ rules = ctx.extract_rules(module)
 print(rules["xor"][0].description())
 ```
 
-The PyPI distribution name is `petra`; the importable Python
-package is `petri_net_nn`. For the framework-level API (build a
-`PetriNet` by hand, compile, train, extract rules, score
-anomalies), see [`docs/DEV_MANUAL.md`](docs/DEV_MANUAL.md).
+The PyPI distribution name is `petra-nn` (the bare `petra` was
+already taken on PyPI); the importable Python package is
+`petri_net_nn`. For the framework-level API (build a `PetriNet`
+by hand, compile, train, extract rules, score anomalies), see
+[`docs/DEV_MANUAL.md`](docs/DEV_MANUAL.md).
 
 ---
 
