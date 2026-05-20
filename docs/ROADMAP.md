@@ -685,9 +685,32 @@ story depends on having more to offer than the floor.
   original. Branching bisimulation (the strictly finer variant
   that respects the choice points along τ-paths) remains a
   follow-up.
-- [ ] **CTL and LTL property checking.** Temporal-logic invariants:
-  "eventually the order ships", "authentication always precedes
-  data access". You can't ask PETRA these questions today.
+- [x] **CTL property checking.** Temporal-logic invariants
+  over the reachability graph. `petri_net_nn.ctl` exposes a
+  six-primitive AST (`Atom`, `Not`, `And`, `Or`, `EX`, `EU`, `EG`)
+  plus the derived constructors (`AX`, `AG`, `AF`, `EF`, `AU`)
+  that expand to the primitives via the standard CTL
+  equivalences. `check_ctl(net, formula)` returns a `CTLResult`
+  with the full set of states satisfying the formula, whether the
+  initial marking is one of them, and a sample counterexample
+  marking if the formula fails somewhere. `satisfies(net, formula)`
+  is the boolean convenience wrapper. Atomic-proposition helpers
+  cover the common marking predicates — `place_has_token`,
+  `place_empty`, `place_count_eq`, `place_count_ge`,
+  `transition_enabled` — and arbitrary custom predicates over the
+  marking are accepted as `Atom(callable, label)`. Implicit
+  self-loops are added at deadlock states (the standard Kripke
+  convention) so AG / AF / EG behave intuitively on terminating
+  workflow nets. The full headline use cases compile cleanly:
+  `AG (request → AF response)` (every request is eventually
+  followed by a response), `AG ¬deadlock` (no reachable state is
+  a deadlock), `A[¬decline U credit_check_done]` (decline cannot
+  fire before the credit check). **LTL** (linear-time semantics
+  evaluated trace-by-trace) remains a follow-up — most temporal
+  questions a process analyst asks are CTL-shaped, and an LTL
+  checker needs either single-trace evaluation against logs
+  (which the existing anomaly path already partly covers) or full
+  Büchi-automaton support.
 - [x] **Aalst soundness verification.** `petri_net_nn.soundness`
   exposes `check_soundness(net)` returning a `SoundnessReport`
   with three pinned outcomes: ``incomplete_markings`` (reachable

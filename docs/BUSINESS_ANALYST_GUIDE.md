@@ -659,7 +659,101 @@ the soundness check — that's a bar everything in `examples/` clears.
 
 ---
 
-## 18. Choosing between equivalent redesigns by cost
+## 18. Asking temporal questions about the process: CTL
+
+Soundness checks tell you the model is *structurally* well-formed.
+Bisimulation checks tell you two models are *equivalent*. But
+there's a third kind of question process people often want to
+ask: *does the process satisfy a specific temporal rule?*
+
+Examples a compliance officer would recognise:
+
+- *"Every approved loan eventually fires the audit-log step."*
+- *"No decline can fire before the credit-check has fired."*
+- *"From every state, the process can still reach completion."*
+- *"There is some path along which the loan is approved within
+  three steps."*
+
+These are **temporal properties** — they're about how the process
+unfolds over time, not just about a single instant. PETRA's
+**CTL checker** answers them mechanically.
+
+### What CTL is
+
+CTL — *Computation Tree Logic* — extends ordinary logic
+(*"AND"*, *"OR"*, *"NOT"*) with operators that quantify over the
+tree of possible futures from each state:
+
+| Operator | Reads as | Means |
+|---|---|---|
+| **AG φ** | "Always (on every path), φ" | φ holds at every reachable state, on every path. *The safety operator.* |
+| **EF φ** | "Eventually (on some path), φ" | Some path reaches a state where φ holds. *Reachability.* |
+| **AF φ** | "Eventually on every path, φ" | Every path eventually reaches a state where φ holds. *Liveness.* |
+| **EG φ** | "Globally on some path, φ" | Some infinite path keeps φ true forever. *Existence of a stable behaviour.* |
+| **EX φ** | "Some next state satisfies φ" | At least one immediate successor satisfies φ. |
+| **AX φ** | "Every next state satisfies φ" | All immediate successors satisfy φ. |
+| **A[φ U ψ]** | "On every path, φ until ψ" | Every path keeps φ true until ψ becomes true. *Ordering invariant.* |
+| **E[φ U ψ]** | "On some path, φ until ψ" | Some path keeps φ true until ψ. |
+
+### Worked examples for each headline question
+
+**"Every approved loan eventually fires the audit-log step."**
+This is the *response* property — a request is eventually matched
+by a response. In CTL:
+
+> *AG (approved → AF audit_log_fired)*
+
+Read: *on every reachable state, if the loan is approved, then on
+every future path some step eventually fires the audit log.*
+
+**"No decline can fire before the credit-check has fired."** An
+*ordering* property — one event must precede another:
+
+> *A[¬decline_fired U credit_check_fired]*
+
+Read: *on every path, decline stays unfired until the credit check
+has fired.*
+
+**"From every state, the process can still reach completion."**
+A *no-deadlock* property — the process is never trapped:
+
+> *AG EF process_complete*
+
+Read: *at every reachable state, there is still some path to a
+completion state.*
+
+**"There is some path along which the loan is approved within
+three steps."** A *bounded reachability* property:
+
+> *EX EX EX approved*
+
+Read: *there is a state three steps away that has the loan
+approved.*
+
+### What PETRA reports
+
+`check_ctl(net, formula)` returns:
+
+| Field | Meaning |
+|---|---|
+| `holds_at_initial` | *Yes/no answer for the property.* |
+| `holds_at` | The full set of reachable states where the formula is satisfied — useful for understanding *where* the property fails. |
+| `counterexample` | A specific reachable state that violates the formula, when one exists. *"Here's the state that breaks the rule"*, not just *"the rule is broken somewhere."* |
+
+### Why this matters
+
+The temporal-logic dimension is what classical formal-methods
+tools (TINA, NuSMV, SPIN) have offered for decades. Bringing it
+inside PETRA — alongside the trained model, the rule extractor,
+the anomaly detector — means a compliance question and a process
+question can be answered together, against the same structural
+model, in the same tool. The bank-loan walkthrough's *Office B
+violates the audit-log invariant* finding (today produced by
+TINA) is now a one-line CTL query.
+
+---
+
+## 19. Choosing between equivalent redesigns by cost
 
 Bisimulation tells you *"these two redesigns do the same thing."*
 The next question is *"which one costs less to run?"* PETRA
@@ -699,7 +793,7 @@ repeatable, audit-trail-friendly).
 
 ---
 
-## 19. The ecosystem: where your data and models come from
+## 20. The ecosystem: where your data and models come from
 
 PETRA's job is to **train, distil, score, and verify**. It is
 deliberately **not** a structure-discovery tool, a modelling GUI,
@@ -721,7 +815,7 @@ in directly.
 
 ---
 
-## 20. Putting it all together: the end-to-end pipeline
+## 21. Putting it all together: the end-to-end pipeline
 
 The pieces above compose into a single analytical pipeline. The
 [README's bank-loan walkthrough](../README.md#using-the-whole-toolchain-together)
@@ -795,6 +889,7 @@ A short reference for the terms used in this guide.
 | **BPMN** | Business Process Model and Notation — the standard visual notation for business processes. |
 | **Coloured Petri net (CPN)** | A Petri net where each token carries a value. PETRA supports a scalar form. |
 | **Cost-ranked refactoring** | Choosing between provably-equivalent process variants by realised-execution cost. |
+| **CTL** (Computation Tree Logic) | A temporal logic for asking questions about how a process unfolds over time: *eventually*, *always*, *on every path*, *on some path*. |
 | **Deadlock** | A reachable state with no enabled transitions and not the intended final state — the process is stuck. |
 | **Firing** | The event of a transition consuming input tokens and producing output tokens. |
 | **Firing rate** | A per-transition multiplier indicating how eagerly the transition fires. Higher rate = more eager. |
@@ -811,6 +906,7 @@ A short reference for the terms used in this guide.
 | **Silent transition** (also τ) | A transition treated as invisible by the weak-bisimulation checker. Used for logging, no-op gates, internal handoffs. |
 | **Soundness** | Aalst's structural property of a workflow net: every reachable state can complete, completion leaves no lingering tokens, no transition is dead. |
 | **Strong bisimulation** | Two nets are strongly bisimilar if every transition each can take is matched exactly (label-for-label) by a transition the other can take. |
+| **Temporal property** | A claim about how a process unfolds over time, rather than about a single state — *eventually X*, *always Y*, *X until Y*. Checked using CTL. |
 | **Token** | A dot in a place — represents one unit of work currently in that state. |
 | **Trace** | One recorded execution of a process — a sequence of events for a single instance. |
 | **Transition** | A rectangle in a Petri net — represents a step or event that moves work forward. |

@@ -378,7 +378,51 @@ catch modeller bugs, after a refactoring to confirm the new
 variant is still sound, or in CI to enforce soundness on every
 scenario.
 
-### 3.9 `bisimulation.py` — formal equivalence checking
+### 3.9 `ctl.py` — Computation Tree Logic model checking
+
+```python
+from petri_net_nn import (
+    Atom, Not, And, Or, EX, EU, EG,
+    AX, AG, AF, EF, AU,
+    place_has_token, place_empty, place_count_eq, place_count_ge,
+    transition_enabled,
+    conj, disj, implies,
+    check_ctl, satisfies, CTLResult,
+)
+```
+
+Build a CTL formula by composing the AST classes, then ask the
+checker whether the net's initial marking satisfies it:
+
+```python
+prop = AG(implies(
+    place_has_token("request"),
+    AF(place_has_token("response")),
+))
+result = check_ctl(net, prop)
+result.holds_at_initial    # bool
+result.holds_at            # frozenset[Marking] of satisfying states
+result.counterexample      # a marking that violates the formula, or None
+```
+
+The AST primitives are `Atom`, `Not`, `And`, `Or`, `EX`, `EU`,
+`EG`; the derived constructors `AX`, `AG`, `AF`, `EF`, `AU`
+expand to combinations of the primitives via the standard CTL
+equivalences (`AG φ ≡ ¬EF ¬φ`, etc.). Atomic propositions are
+predicates over the current marking, expressed either via the
+helpers (`place_has_token`, `place_empty`, `place_count_eq`,
+`place_count_ge`, `transition_enabled`) or built directly with
+`Atom(callable, label)` where the callable takes a `dict[str, int]`
+marking and returns a bool.
+
+Implementation note: implicit self-loops are added at every
+deadlock state before the fixed-point computation — the standard
+Kripke convention so that AG / AF / EG behave intuitively on
+terminating workflow nets (without the self-loops, EG would be
+vacuously false everywhere on a terminating net, and AX would be
+vacuously true at the sink).
+
+### 3.10 `bisimulation.py` — formal equivalence checking
 
 ```python
 from petri_net_nn import (
@@ -406,7 +450,7 @@ that add or remove internal-only structural artefacts no longer
 break the equivalence claim, which is the case the cost-ranked
 refactoring story relies on.
 
-### 3.10 `subnets.py` — hand-built reference subnets
+### 3.11 `subnets.py` — hand-built reference subnets
 
 `SequentialSubnet`, `XORSubnet`, `AndSplitSubnet`, `AndJoinSubnet`,
 `SagaSubnet` — five `nn.Module` subclasses corresponding to the
@@ -546,5 +590,5 @@ python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
 
-Current test count: 332 passing across the framework and the
+Current test count: 351 passing across the framework and the
 end-to-end scenarios.

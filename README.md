@@ -433,6 +433,7 @@ petri_net_nn/         # the framework
   interpretability.py # distil learned weights into rules
   bisimulation.py     # strong + weak bisimulation equivalence checking
   soundness.py        # Aalst soundness + deadlock localisation
+  ctl.py              # CTL temporal-logic model checking
   adapter.py          # config-driven scenario loader
 
 examples/             # 14 end-to-end scenarios — see "Worked examples" above
@@ -465,7 +466,7 @@ docs/
 ## Running tests
 
 ```
-python -m pytest                          # full suite (~332 tests)
+python -m pytest                          # full suite (~351 tests)
 python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
