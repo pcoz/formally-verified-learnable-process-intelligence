@@ -48,6 +48,13 @@ kinase for a slow effector response. The fast/slow routing is
 signal-strength dependent (a recurring motif in real signalling
 networks).
 
+> **See also** [`mapk_pathway/`](../mapk_pathway/) — the same
+> family of biology loaded directly from a Pathway Commons SIF
+> file (real Reactome entity names, real interaction-type
+> vocabulary) rather than hand-coded. The two scenarios cover the
+> two ends of the workflow: structurally-trainable hand-coded
+> cascade here vs. format-driven import there.
+
 ## Files
 
 - `scenario.toml` — full scenario specification: net topology, inline

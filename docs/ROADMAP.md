@@ -157,6 +157,13 @@ boilerplate).
 | `scientific_workflow/` | Point 4 (deviation analysis in scientific workflows) | PCR quality gate learned; skipped-step deviation flagged. |
 | `multi_agent_coordination/` | Point 2 (multi-agent coordination protocols), Point 4 (coordination-violation detection) | Contract-net with 3 pools / 6 message places; bid-driven award routing learned; AND-join rule distilled over 3 inputs; pre-bid award flagged as anomalous. |
 | `cost_ranked_refactoring/` | Point 3 (bisimulation), Point 6 (cost-ranked refactoring) | Two cost variants verified equivalent; variant B confirmed ~6× cheaper across input distribution. |
+| `batch_packaging/` | Phase 9 multi-token markings | Arc weight 6 batches bottles into crates; six tokens accumulate before the crate transition fires. |
+| `resource_lock/` | Phase 9 inhibitor arcs | Two clients race for a shared resource; mutex enforced by the soft `(1 − a(p))` inhibitor gate. |
+| `paint_shop/` | Phase 9 transition durations | A duration-3 cure step delays output by two extra time-unrolled steps. |
+| `priority_dispatch/` | Phase 9 firing rates | Three handlers at rates 3.0 / 1.0 / 0.5; rate-3 handler fires roughly three times as eagerly for the same input. |
+| `credit_approval_coloured/` | Phase 9 coloured tokens + Phase 9 follow-up CPN-aware compiler | Token-game routing on application amount; trained guard threshold lands in the empirical decision band 900–1500 from the hand-set 1000. |
+| `incident_management/` | Phase 10 — real BPI Challenge 2013 incidents log | 7,554 Volvo IT tickets, 65k events; PETRA flags traces that skip the Resolved step before Closing. |
+| `mapk_pathway/` | Phase 10 — Pathway Commons SIF import | Canonical EGF → MAPK1/3 cascade loaded as SIF; forward pass propagates activation through the full receptor → adapter → small GTPase → MAP3K → MAP2K → MAPK → transcription-factor chain. |
 
 **Framework shortcoming discovered and fixed during scenario
 validation:** `find_xor_groups` originally only detected single-input
@@ -175,12 +182,15 @@ the pipeline is in place with running tests:
 | Engine capability | PETRA delivers it via |
 |---|---|
 | Read a BPMN process | `parse_bpmn` (Phase 1) — tasks, gateways, boundaries, compensation, cross-pool collaborations |
-| Learn how the process actually runs from logs | `train_on_traces` over XES (Phase 1, §10 Step 3) |
-| Verify two variants are behaviourally equivalent | `are_bisimilar` (Phase 2) |
+| Read external Petri-net or pathway formats | `parse_pnml` / `parse_sif` (Phase 10) — CPN Tools, GreatSPN, TINA, ProM, Pathway Commons |
+| Learn how the process actually runs from logs | `train_on_traces` over XES / CSV / JSON (Phase 1, §10 Step 3) |
+| Verify two variants are behaviourally equivalent | `are_bisimilar` (Phase 2, strong), `are_weakly_bisimilar` (Phase 11, ignores internal silent steps) |
+| Verify the model is structurally sound | `check_soundness` and `find_deadlocks` (Phase 11) — option to complete, proper completion, no dead transitions, deadlock localisation |
 | Distill the trained model's decisions into readable rules | `extract_routing_rules` / `extract_and_join_rules` (Phase 8) |
 | Detect deviations in production | `anomaly_score` with residuals pinned to BPMN element names (Phase 7) |
 | Rank refactorings by realised cost | `expected_cost` (Phase 6 + cost-ranked-refactoring scenario) |
-| Capacity, batching, mutex, durations, retry loops, saga compensation | Phase 3 (time-unrolling), Phase 4 (compensation), Phase 9 (multi-token, inhibitor, durations) |
+| Capacity, batching, mutex, durations, retry loops, saga compensation | Phase 3 (time-unrolling), Phase 4 (compensation), Phase 9 (multi-token, inhibitor, durations, rates) |
+| Routing decisions on per-token values | Phase 9 coloured tokens + the CPN-aware compiler (structural guards, torch guards, torch output transforms) |
 
 The `cost_ranked_refactoring` scenario already runs the full
 optimisation pipeline end to end: two BPMN variants → bisimulation

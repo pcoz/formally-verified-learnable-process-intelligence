@@ -33,47 +33,97 @@ is needed.
 
 ### 2.1 Config schema (TOML)
 
-```toml
-[scenario]
-name = "..."             # human-readable identifier
-description = "..."      # optional
+The full surface of the adapter, organised by section. Every
+field is optional unless flagged otherwise.
 
+```toml
+# ---------------------------------------------------------------------------
+# [scenario] — identification metadata
+[scenario]
+name = "..."             # human-readable identifier (defaults to file stem)
+description = "..."      # optional one-line description
+
+# ---------------------------------------------------------------------------
+# [net] — exactly one source per scenario
 [net]
-source = "inline"        # or "bpmn_file", "pnml_file", "sif_file"
-# ---- inline form ----
+source = "inline"        # one of: "inline" | "bpmn_file" | "pnml_file" | "sif_file"
+
+# ---- "inline" form: declare the net structurally in TOML ----
 [[net.places]]
-id = "p_x"
+id = "p_x"               # required
 tokens = 1               # initial-marking tokens (default 0)
-label = "..."            # optional human label
+label = "..."            # human label
+
 [[net.transitions]]
-id = "t_x"
+id = "t_x"               # required
 label = "..."
+duration = 1             # firing duration in time-unrolled steps (default 1)
+rate = 1.0               # firing-rate prior multiplier (default 1.0)
+guard = { place = "p_x", op = ">=", value = 1000.0 }   # CPN structural guard
+# silent = true          # mark as τ for weak bisimulation
+
 [[net.arcs]]
 src = "p_x"
 dst = "t_x"
-# ---- OR: bpmn_file form ----
-# path = "process.bpmn"  # relative to the config file
+weight = 1               # arc multiplicity (default 1, >1 for batching)
+output_value = 1.0       # CPN output value (constant only via TOML)
 
+# Inhibitor arcs — place must be empty for the transition to fire
+[[net.inhibitor_arcs]]
+place = "p_guard"
+transition = "t_guarded"
+
+# ---- OR: "bpmn_file" form — process.bpmn relative to the config ----
+# path = "process.bpmn"
+
+# ---- OR: "pnml_file" form — PNML 2009 P/T net subset ----
+# path = "net.pnml"
+
+# ---- OR: "sif_file" form — Pathway Commons SIF ----
+# path = "pathway.sif"
+
+# ---------------------------------------------------------------------------
+# [traces] — exactly one source per scenario; section is optional if you
+# only want to load the net structurally
 [traces]
-source = "inline"        # or "xes_file"
-# ---- inline ----
-[[traces.inline]]
-attributes = { signal = "0.9" }
-events = ["task_a", "task_b"]
-# ---- OR ----
-# path = "traces.xes"
+source = "xes_file"      # one of: "inline" | "xes_file" | "csv_file" | "json_file"
 
+# ---- "xes_file" form ----
+path = "log.xes"                          # or .xes.gz (parser handles gzip)
+limit_traces = 300                        # cap for large public XES logs
+promote_event_attrs = ["impact"]          # lift event attrs to trace level
+event_name_attr = "lifecycle:transition"  # use a different attr as event name
+
+# ---- "csv_file" form (process-mining flat table) ----
+# path = "log.csv"
+# case_column = "case_id"
+# activity_column = "activity"
+
+# ---- "json_file" form ----
+# path = "log.json"
+
+# ---- "inline" form ----
+# [[traces.inline]]
+# attributes = { signal = "0.9" }
+# events = ["task_a", "task_b"]
+
+# ---------------------------------------------------------------------------
+# [training.input_marking] — required when traces are present.
+# Each key is a place id; value is { attribute = "name" } (read from the
+# trace's attributes dict) or { constant = N }.
 [training.input_marking]
-# Each key is a place id; value is either:
-p_x = { attribute = "signal" }   # take the trace's "signal" attribute
-p_y = { constant = 0.5 }         # pin to a constant
+p_x = { attribute = "signal" }
+p_y = { constant = 0.5 }
 
-[training.input_values]
-# Optional. Coloured-Petri-net value channel — same spec form as
-# input_marking but feeds the per-token value the compiler reads
+# ---------------------------------------------------------------------------
+# [training.input_values] — coloured-Petri-net value channel; same form
+# as input_marking but feeds the per-token value the compiler reads
 # through structural guards (see §3.3).
+[training.input_values]
 p_x = { attribute = "amount" }
 
+# ---------------------------------------------------------------------------
+# [training] — training hyperparameters
 [training]
 steps = 1500
 lr = 0.1
@@ -83,10 +133,16 @@ routing = "independent"          # or "softmax"
 num_steps = 0                    # 0 = acyclic single-pass, >0 = time-unrolled
 seed = 0                         # torch.manual_seed before module construction
 
+# ---------------------------------------------------------------------------
+# [interpretability] — toggles for ctx.extract_rules()
 [interpretability]
 extract_xor_rules = true
 extract_and_join_rules = false
 ```
+
+Anything not listed above (per-transition torch guards, custom arc
+output transforms, etc.) lives in the Python API rather than TOML
+— torch callables can't round-trip through a configuration file.
 
 ### 2.2 `ScenarioContext` methods
 
@@ -187,46 +243,45 @@ behaviour, in order of expressiveness:
 1. **Structural guard** — ``{place, op, value}`` declared in TOML or
    via ``add_transition(..., structural_guard=...)``. The compiler
    builds one learnable ``nn.Parameter`` threshold per guarded
-   transition; training refines it. This is the case where you want
-   PETRA to *learn the threshold from data*.
+   transition, *seeded at* ``value`` and *refined by* training,
+   and multiplies the transition's firing strength by
+
+       soft_guard(t) = σ( sharpness · scale(t) · sign(op) · ( value(place) − θ_guard(t) ) )
+
+   with ``sign(op) = +1`` for ``>``/``>=`` and ``−1`` for
+   ``<``/``<=``, and ``scale(t) = 1 / max(|θ_init|, 1.0)`` so the
+   sigmoid's gradient is O(1) at the boundary regardless of the
+   value units the modeller used. *Equality / inequality (``==``,
+   ``!=``) cannot be expressed structurally and must use the
+   torch-guard form below.* This is the case where you want PETRA
+   to **learn the threshold from data** — see the
+   `credit_approval_coloured` scenario.
+
 2. **Torch guard** — a Python callable on the transition (kwarg
-   ``torch_guard=...``) taking ``dict[place_id, Tensor(batch,)]`` of
-   input values and returning a ``Tensor(batch,)`` gate in [0, 1].
-   For routing logic the structural form can't express:
+   ``torch_guard=...``) taking ``dict[place_id, Tensor(batch,)]``
+   of input values and returning a ``Tensor(batch,)`` gate in
+   [0, 1]. For routing logic the structural form can't express:
    multi-input comparisons, compound predicates, custom learnable
    sub-networks. Overrides the structural guard when both are
    declared on the same transition.
-3. **Token-game-only callable guard** — ``guard=...``, a bool-returning
-   ``GuardFn``. Used by ``fire_coloured`` / ``is_enabled_coloured``;
-   the compiler ignores it.
 
-Output-arc values follow the same three-tier pattern:
-``torch_output_value`` (callable on bound input value tensors,
-honoured by the compiler), then ``output_value`` (constant float
-honoured by the compiler, or callable evaluated only by the
-token-game), then the default 1.0.
+3. **Token-game-only callable guard** — ``guard=...``, a
+   bool-returning ``GuardFn``. Used by ``fire_coloured`` /
+   ``is_enabled_coloured``; the compiler ignores it.
 
-When a transition has a structural guard, the compiler builds
-one learnable ``nn.Parameter`` threshold per guarded transition —
-seeded at the TOML value, refined by training. A soft sigmoid
-gate multiplies the transition's firing strength:
+Output-arc values follow the same tiered pattern, in compiler
+precedence: ``torch_output_value`` (callable on bound input
+value tensors, honoured by the compiler), then ``output_value``
+(constant float honoured by the compiler, or float-returning
+callable evaluated only by the token-game), then the default
+1.0.
 
-    soft_guard(t) = σ( sharpness · scale(t) · sign(op) · ( value(place) − θ_guard(t) ) )
-
-with ``sign(op) = +1`` for ``>``/``>=`` and ``−1`` for ``<``/``<=``,
-and ``scale(t) = 1 / max(|θ_init|, 1.0)`` so the sigmoid's gradient
-is O(1) at the boundary regardless of the value units the modeller
-used. The forward pass carries a parallel per-place *value*
-channel alongside activations: source-place values come from the
-new ``input_values`` argument (default 1.0); non-source places get
-an activation-weighted average of contributing transitions'
-output-arc values (``arc_output_values`` constants only — callable
-transforms stay token-game-only). Equality / inequality guards
-must be expressed as opaque callables and are not trainable; only
-inequality guards take part in training. The thresholds train
-end-to-end with the rest of the network, so the model can refine
-the declared boundary from execution traces — see the
-`credit_approval_coloured` scenario.
+The forward pass carries a parallel per-place *value* channel
+alongside activations: source-place values come from the
+``input_values=...`` argument to ``forward`` (default 1.0);
+non-source places get an activation-weighted average of
+contributing transitions' output-arc values. This channel is
+what the guard sigmoids read.
 
 ### 3.4 `traces.py` — training and anomaly scoring
 
