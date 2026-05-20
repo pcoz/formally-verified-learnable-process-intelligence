@@ -430,8 +430,9 @@ petri_net_nn/         # the framework
 examples/             # 14 end-to-end scenarios — see "Worked examples" above
 tests/                # framework + scenario tests
 docs/
-  ROADMAP.md          # product roadmap, phase status, framing
-  DEV_MANUAL.md       # framework + adapter usage guide
+  BUSINESS_ANALYST_GUIDE.md  # plain-English concepts primer for non-coders
+  ROADMAP.md                 # product roadmap, phase status, framing
+  DEV_MANUAL.md              # framework + adapter usage guide
 ```
 
 ---
@@ -439,11 +440,16 @@ docs/
 ## Reading order
 
 1. This README — what PETRA is and what to do with it.
-2. [`docs/ROADMAP.md`](docs/ROADMAP.md) — framing, phase status,
+2. [`docs/BUSINESS_ANALYST_GUIDE.md`](docs/BUSINESS_ANALYST_GUIDE.md)
+   — a no-code, no-maths walkthrough of every framework concept
+   (Petri nets, BPMN translation, coloured tokens, bisimulation,
+   the lot) aimed at process analysts, compliance officers, and
+   project managers.
+3. [`docs/ROADMAP.md`](docs/ROADMAP.md) — framing, phase status,
    what's next.
-3. Any [`examples/*/README.md`](examples/) — a concrete scenario in
+4. Any [`examples/*/README.md`](examples/) — a concrete scenario in
    your domain.
-4. [`docs/DEV_MANUAL.md`](docs/DEV_MANUAL.md) — adapter config and
+5. [`docs/DEV_MANUAL.md`](docs/DEV_MANUAL.md) — adapter config and
    framework API reference.
 
 ---
