@@ -60,6 +60,7 @@ nav:
   - Home: index.md
   - Business Analyst Guide: BUSINESS_ANALYST_GUIDE.md
   - Developer Manual: DEV_MANUAL.md
+  - Integration Patterns: INTEGRATION_PATTERNS.md
   - Roadmap: ROADMAP.md
   - API Reference:
       - Overview: api/index.md
@@ -80,6 +81,7 @@ nav:
       - ONNX export: api/onnx_export.md
       - Streaming evaluator: api/streaming.md
       - REST API: api/rest.md
+      - Command-line interface: api/cli.md
 
 plugins:
   - search

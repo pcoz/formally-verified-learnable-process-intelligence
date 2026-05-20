@@ -944,13 +944,52 @@ that's the consuming application's call.
   Single-model-per-app by design — spin multiple FastAPI
   processes for multi-model serving. Auth / CORS / rate
   limiting are deliberately left to the caller's app layer.
-- [ ] **Workflow-engine plugins.** Camunda, Activiti, Flowable —
-  train on production traces, push anomaly signals back into the
-  engine's monitoring layer. This is what turns the
-  cost-ranked-refactoring claim into something actually deployable.
-- [ ] **Process-mining tool bridges.** ProM, Celonis, Disco — pull
-  discovered models in, push trained PETRA modules out alongside
-  ordinary process-mining artefacts.
+- [x] **Workflow-engine integration toolkit** *(Python-side).* New
+  `petri_net_nn.cli` module with three command-line entry points
+  declared in `pyproject.toml`'s `[project.scripts]`:
+  `petra-train` (TOML scenario → bundle), `petra-score`
+  (bundle + traces → JSON per-trace scores), `petra-serve`
+  (bundle → FastAPI REST app under uvicorn). The bundle format
+  is two files: a `.pt` pickled module + a `.meta.json` sidecar
+  carrying the scenario's input-marking and input-values specs
+  so `petra-score` can map trace attributes onto place markings
+  without needing the original `scenario.toml` at score time.
+
+  Together with the REST API (Phase 14), the streaming evaluator
+  (Phase 14), and the existing CSV/JSON/XES trace loaders, this
+  is enough to wire PETRA into any workflow engine that emits
+  structured audit events through *three documented integration
+  patterns* (`docs/INTEGRATION_PATTERNS.md`):
+
+  1. **REST webhook** — engine POSTs to `petra-serve`
+     synchronously on each event-of-interest.
+  2. **Audit-log tail** — engine exports its history table to
+     CSV; `petra-score` runs on a cron schedule against it.
+  3. **Streaming subscription** — engine publishes to Kafka /
+     RabbitMQ / Redis Streams; PETRA's `StreamingEvaluator`
+     consumes via a ~25-line consumer.
+
+  The patterns work against the three named engines (Camunda,
+  Activiti, Flowable) and any other system that can emit
+  structured events to a database, queue, or HTTP webhook.
+
+- [ ] **Engine-side JVM plugins.** Native execution-listener /
+  command-interceptor / process-delegate bindings for Camunda,
+  Activiti, and Flowable. Explicit follow-up — out of scope
+  for the Python-only crate. The boundary between PETRA and
+  an engine is currently JSON (for the three patterns above)
+  or ONNX (for in-process JVM inference via `export_onnx` →
+  ONNX Runtime for Java). Going further would mean a cross-
+  language project (Maven build, JVM-side weight loading,
+  per-engine extension shapes) that is properly its own
+  repository.
+
+- [ ] **Process-mining tool bridges** *(deeper than the existing
+  PNML import).* ProM's PNML output is already consumed via
+  `parse_pnml` (Phase 10); the missing piece is a single
+  end-to-end recipe / wrapper for *discover → verify → train*
+  that bundles ProM (or PM4Py / Celonis / Disco) with PETRA.
+  Native structure discovery inside PETRA is Phase 12.
 
 ---
 

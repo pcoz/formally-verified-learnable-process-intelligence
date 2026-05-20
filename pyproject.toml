@@ -90,6 +90,17 @@ Repository = "https://github.com/pcoz/formally-verified-learnable-process-intell
 Documentation = "https://github.com/pcoz/formally-verified-learnable-process-intelligence#readme"
 Changelog = "https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/CHANGELOG.md"
 
+# Command-line entry points — pip install petra-nn drops these on
+# the user's PATH. The `petra` umbrella exposes all three
+# subcommands (train / score / serve); the petra-* aliases are
+# convenience wrappers so the subcommand word is optional in
+# scripts and cron jobs.
+[project.scripts]
+petra = "petri_net_nn.cli:main"
+petra-train = "petri_net_nn.cli:train_entry"
+petra-score = "petri_net_nn.cli:score_entry"
+petra-serve = "petri_net_nn.cli:serve_entry"
+
 [tool.setuptools]
 # Explicit package listing — keeps the wheel from accidentally
 # vacuuming up examples/, docs/, tests/, session_notes/ etc.

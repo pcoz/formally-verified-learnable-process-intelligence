@@ -24,3 +24,4 @@ this site and the changes appear here automatically.
 | [ONNX export](onnx_export.md) | Export a trained `PetriNetModule` to ONNX for deployment to any ONNX runtime (C++, Java, browser, mobile, edge). |
 | [Streaming evaluator](streaming.md) | Per-case real-time anomaly scoring against a live event source — `StreamingEvent`, `StreamingEvaluator`, push/pull shapes. |
 | [REST API](rest.md) | `build_app(module)` returns a FastAPI app exposing six endpoints (`/healthz`, `/schema`, `/forward`, `/anomaly`, `/counterfactual`, `/sensitivity`) for non-Python consumers. |
+| [Command-line interface](cli.md) | `petra-train` / `petra-score` / `petra-serve` entry points — engine-team integration story, see also [Integration Patterns](../INTEGRATION_PATTERNS.md). |

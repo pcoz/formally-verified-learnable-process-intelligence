@@ -608,7 +608,62 @@ most real event sources have.
 Single-threaded by design. A multi-threaded source should
 serialise calls through a single consumer goroutine / queue.
 
-### 3.13 `rest.py` — HTTP wrapper around a trained module
+### 3.13 `cli.py` — command-line entry points for engine integration
+
+`pip install petra-nn` drops three commands on the user's PATH
+(plus a `petra` umbrella that exposes them as subcommands):
+
+| Command | What it does |
+|---|---|
+| `petra-train scenario.toml -o model.pt` | Load a TOML scenario, train the compiled module, save a bundle (`.pt` + `.meta.json` sidecar). |
+| `petra-score model.pt --traces log.csv` | Load a saved bundle, score traces from XES/CSV/JSON, emit per-trace anomaly scores as JSON. |
+| `petra-serve model.pt --port 8000` | Load a saved bundle and run the FastAPI REST app under uvicorn on a port. |
+
+These exist for **engine integration** — a workflow team that
+wants to plug PETRA into Camunda / Activiti / Flowable can do
+the entire round trip (train → serve / score) without writing
+any Python beyond the scenario TOML.
+
+**What this enables.** A workflow team installs `petra-nn`,
+exports a representative slice of their engine's audit log to
+CSV, runs `petra-train` once, gets a deployable bundle, and
+then chooses one of three integration patterns:
+
+- *call `petra-serve`* and have the engine POST to PETRA's
+  REST endpoint per event (synchronous);
+- *feed the engine's Kafka / RabbitMQ topic* into PETRA's
+  `StreamingEvaluator` (live, decoupled);
+- *run `petra-score` on a cron schedule* against an exported
+  history CSV (batch).
+
+**What this deliberately is NOT.** No JVM-side plugins. There
+is no Java code in this repository, no Camunda execution
+listener, no Activiti command interceptor, no Flowable process
+delegate. The boundary between PETRA and an engine is **JSON**
+(for the three patterns above) or **ONNX** (for in-process
+JVM inference using a `petra-train` + `export_onnx` bundle
+loaded by ONNX Runtime for Java). Engine-side extension code
+is the engine team's responsibility — see
+`docs/INTEGRATION_PATTERNS.md` for the per-pattern wiring
+recipes covering all three named engines.
+
+### Bundle format
+
+A trained-model bundle is two files written side-by-side by
+`petra-train`:
+
+- `model.pt` — pickled :class:`PetriNetModule`. Use
+  :func:`torch.load(path, weights_only=False)` to reconstruct.
+  **Don't load bundles from untrusted sources** — pickle
+  deserialises arbitrary Python objects.
+- `model.pt.meta.json` — JSON sidecar with the scenario name,
+  description, `input_marking_spec`, `input_values_spec`, the
+  PETRA version that produced the bundle, and a UTC timestamp.
+  Read by `petra-score` to map trace attributes onto place
+  markings without needing the original `scenario.toml` at
+  score time.
+
+### 3.14 `rest.py` — HTTP wrapper around a trained module
 
 ```python
 from petri_net_nn import load_scenario, build_app
@@ -646,7 +701,7 @@ fastapi / pydantic imports are guarded at module load and
 deps. Single-model-per-app by design; auth / CORS / rate
 limiting are left to the caller's app layer.
 
-### 3.14 `onnx_export.py` — export to the ONNX interchange format
+### 3.15 `onnx_export.py` — export to the ONNX interchange format
 
 ```python
 from petri_net_nn import export_onnx
@@ -816,5 +871,5 @@ python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
 
-Current test count: 408 passing across the framework and the
+Current test count: 416 passing across the framework and the
 end-to-end scenarios.
