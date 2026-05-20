@@ -1023,6 +1023,38 @@ that's the consuming application's call.
 
 ---
 
+## Pending release: v0.2.0 to PyPI
+
+The PyPI page for `petra-nn` is currently built from the
+README that shipped with **v0.1.0** — it predates everything
+done since:
+
+* Phase 12 Inductive Miner (`discover_inductive`,
+  `discover_and_train`) — *net-new public API*, not just docs.
+* The README's *"Don't have a Petri net yet?"* section and
+  the honest-framing calibration.
+* The seven proposed worked-example scenarios listed below
+  (whichever land before the release will ride along).
+
+Because the additions are public-API-additive, the semver
+bump is **minor** (v0.1.0 → **v0.2.0**), not patch. Steps:
+
+- [ ] Bump `petri_net_nn.__version__` to `"0.2.0"`.
+- [ ] Add a `v0.2.0` section at the top of `docs/CHANGELOG.md`.
+- [ ] Commit, then `git tag v0.2.0 && git push origin v0.2.0`.
+- [ ] The existing PyPI Trusted-Publisher workflow
+  (`.github/workflows/publish.yml`) picks the tag up
+  automatically and uploads the new wheel + sdist; the PyPI
+  long-description refreshes on next page view.
+- [ ] Sanity-check at <https://pypi.org/project/petra-nn/>
+  that the new README is showing, including the discovery
+  section and honest-framing block.
+
+(There is no on-PyPI manual edit step — everything flows
+from the tag.)
+
+---
+
 ## Pending worked-example scenarios
 
 The capabilities below all have full implementations and test
