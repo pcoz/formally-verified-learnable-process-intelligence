@@ -50,6 +50,11 @@ from petri_net_nn.ctl import (
     transition_enabled,
 )
 from petri_net_nn.onnx_export import export_onnx
+from petri_net_nn.streaming import (
+    StreamingEvaluation,
+    StreamingEvaluator,
+    StreamingEvent,
+)
 from petri_net_nn.pnml import parse_pnml, to_pnml
 from petri_net_nn.sif import parse_sif
 from petri_net_nn.soundness import (
@@ -143,6 +148,9 @@ __all__ = [
     "SequentialSubnet",
     "SharpnessScheduler",
     "SoundnessReport",
+    "StreamingEvaluation",
+    "StreamingEvaluator",
+    "StreamingEvent",
     "XESEvent",
     "XESTrace",
     "XORPartition",

@@ -22,3 +22,4 @@ this site and the changes appear here automatically.
 | [Interpretability](interpretability.md) | Rule extraction, bootstrap CIs, counterfactuals, sensitivity analysis, cross-variant comparison reports, prose explainers. |
 | [Subnets](subnets.md) | Hand-built reference subnets — the five canonical workflow-net building blocks. |
 | [ONNX export](onnx_export.md) | Export a trained `PetriNetModule` to ONNX for deployment to any ONNX runtime (C++, Java, browser, mobile, edge). |
+| [Streaming evaluator](streaming.md) | Per-case real-time anomaly scoring against a live event source — `StreamingEvent`, `StreamingEvaluator`, push/pull shapes. |

@@ -904,9 +904,22 @@ that's the consuming application's call.
   runtime dependency beyond torch itself; the optional
   `[onnx]` extra brings `onnxruntime` for the parity-test
   surface.
-- [ ] **Streaming evaluator.** Consume a live event stream (Kafka,
-  webhook, file-tail) and emit anomaly scores in real time, instead
-  of needing a finished log.
+- [x] **Streaming evaluator.** `petri_net_nn.streaming` exposes
+  `StreamingEvent`, `StreamingEvaluation`, and `StreamingEvaluator`.
+  The evaluator maintains per-case state (event list + merged
+  attribute dict, latest-event-wins on key conflicts) and scores
+  on demand against the trained module. Two operating modes:
+  *on-close* (the default; `on_event` buffers, `close_case`
+  emits the final score and frees state) and *on-every-event*
+  (every `on_event` returns a `StreamingEvaluation` against the
+  partial trace, useful for live dashboards at higher per-event
+  cost). Both push (`on_event`) and pull (`process_stream`)
+  shapes are supported so the user can wire to whatever source
+  they have — Kafka consumer, webhook handler, file-tail, batch
+  backfill of a stored log. Scoring delegates to the existing
+  offline `anomaly_score`, so streaming and batch share the same
+  correctness story. Single-threaded by design; a multi-threaded
+  deployment serialises through a single consumer.
 - [ ] **REST inference API.** A standard HTTP wrapper around a
   trained module, for the inevitable non-Python consumers.
 - [ ] **Workflow-engine plugins.** Camunda, Activiti, Flowable —

@@ -561,7 +561,54 @@ canonical workflow-net building blocks. The general
 `PetriNetModule` subsumes them; the hand-built versions stay as
 readable references and regression coverage.
 
-### 3.12 `onnx_export.py` — export to the ONNX interchange format
+### 3.12 `streaming.py` — real-time anomaly scoring
+
+```python
+from petri_net_nn import (
+    StreamingEvent, StreamingEvaluation, StreamingEvaluator,
+)
+
+evaluator = StreamingEvaluator(
+    trained_module,
+    attribute_to_marking=ctx.attribute_to_marking,
+    score_on_every_event=False,   # default: only score on close
+)
+
+# Push events as they arrive on the stream:
+evaluator.on_event(StreamingEvent(
+    case_id="loan-4827", name="ApplicationSubmitted",
+    attributes={"amount": "5000"},
+))
+evaluator.on_event(StreamingEvent(
+    case_id="loan-4827", name="CreditCheck",
+    attributes={},
+))
+
+# When the case is known to be finished:
+result = evaluator.close_case("loan-4827")
+# result.trace_score, result.per_transition_residuals,
+# result.n_events, result.closed=True.
+```
+
+The default policy is *on close* — `on_event` returns `None`,
+state accumulates per case, `close_case` scores once and frees
+the state. Flip `score_on_every_event=True` to get an
+evaluation back from every `on_event` call (live-dashboard
+mode, at higher per-event cost). The pull helper
+`process_stream(events_iter)` yields evaluations as they come,
+useful for testing and batch backfill of a stored log.
+
+Scoring delegates to the offline `anomaly_score` against a
+:class:`XESTrace` assembled from the per-case events and the
+merged attribute dict — so streaming and batch share the same
+correctness story. Per-case attributes use latest-event-wins
+on key collisions, which matches the "current state" semantics
+most real event sources have.
+
+Single-threaded by design. A multi-threaded source should
+serialise calls through a single consumer goroutine / queue.
+
+### 3.13 `onnx_export.py` — export to the ONNX interchange format
 
 ```python
 from petri_net_nn import export_onnx
@@ -731,5 +778,5 @@ python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
 
-Current test count: 386 passing across the framework and the
+Current test count: 396 passing across the framework and the
 end-to-end scenarios.
