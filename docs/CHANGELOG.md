@@ -6,9 +6,10 @@ follows [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Public-API-additive work since v0.1.0. Bound for the next release as
-**v0.2.0** (minor bump — new public functions exported, no
-breaking changes to the existing surface).
+## [0.2.0] — 2026-05-21
+
+Public-API-additive release. Minor bump (new public functions
+exported, no breaking changes to the existing surface).
 
 ### Added
 
@@ -183,5 +184,6 @@ spec (Phases 1–8) plus the substantial extensions in Phases 9–13.
 - `docs/DEV_MANUAL.md` — framework + adapter API reference.
 - One README per scenario under `examples/`.
 
-[Unreleased]: https://github.com/pcoz/formally-verified-learnable-process-intelligence/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/pcoz/formally-verified-learnable-process-intelligence/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/pcoz/formally-verified-learnable-process-intelligence/releases/tag/v0.2.0
 [0.1.0]: https://github.com/pcoz/formally-verified-learnable-process-intelligence/releases/tag/v0.1.0

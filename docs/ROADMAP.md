@@ -1048,35 +1048,35 @@ that's the consuming application's call.
 
 ---
 
-## Pending release: v0.2.0 to PyPI
+## Release: v0.2.0 to PyPI *(done)*
 
-The PyPI page for `petra-nn` is currently built from the
-README that shipped with **v0.1.0** — it predates everything
-done since:
+Cut on **2026-05-21**. Minor bump from v0.1.0 — net-new
+public API exported, no breaking changes to the existing
+surface. The release picked up:
 
-* Phase 12 Inductive Miner (`discover_inductive`,
-  `discover_and_train`) — *net-new public API*, not just docs.
-* The README's *"Don't have a Petri net yet?"* section and
-  the honest-framing calibration.
-* The seven proposed worked-example scenarios listed below
-  (whichever land before the release will ride along).
+* Phase 11 coverability analysis (`coverability_graph`,
+  `is_bounded`, `CoverabilityReport`, `OMEGA`).
+* Phase 12 basic Inductive Miner (`discover_inductive`,
+  `discover_and_train`) plus the process-tree primitives.
+* Phase 14 productionisation toolkit — ONNX export
+  (`export_onnx`), streaming evaluator (`StreamingEvaluator`),
+  FastAPI REST wrapper (`build_app`), `petra-train` /
+  `petra-score` / `petra-serve` CLI entry points.
+* Adapter extension — `net.source = "discover"` keyword.
+* All seven worked-example scenarios from the next section
+  below.
+* Auto-built MkDocs Material documentation site.
+* The dedicated `docs/WORKED_EXAMPLES.md` page and the
+  "What this unlocks (the non-obvious parts)" framing
+  surfaced in both the README and the docs landing page.
+* Honest-framing calibration on native discovery.
+* CI dependency fix for torch 2.12 (added `onnx>=1.15` to
+  the `[onnx]` extra).
 
-Because the additions are public-API-additive, the semver
-bump is **minor** (v0.1.0 → **v0.2.0**), not patch. Steps:
-
-- [ ] Bump `petri_net_nn.__version__` to `"0.2.0"`.
-- [ ] Add a `v0.2.0` section at the top of `docs/CHANGELOG.md`.
-- [ ] Commit, then `git tag v0.2.0 && git push origin v0.2.0`.
-- [ ] The existing PyPI Trusted-Publisher workflow
-  (`.github/workflows/publish.yml`) picks the tag up
-  automatically and uploads the new wheel + sdist; the PyPI
-  long-description refreshes on next page view.
-- [ ] Sanity-check at <https://pypi.org/project/petra-nn/>
-  that the new README is showing, including the discovery
-  section and honest-framing block.
-
-(There is no on-PyPI manual edit step — everything flows
-from the tag.)
+The PyPI page at <https://pypi.org/project/petra-nn/>
+refreshes on next view; the trusted-publisher workflow
+uploaded sdist + wheel automatically when the `v0.2.0` tag
+was pushed.
 
 ---
 
