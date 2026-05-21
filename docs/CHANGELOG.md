@@ -84,6 +84,21 @@ breaking changes to the existing surface).
   The deployment bridge to JVM workflow engines, C++
   inference servers, browser-based decisioning UIs, mobile,
   and accelerator stacks. Four tests.
+- **`examples/rest_serving/`** worked-example scenario — Phase
+  14 REST inference API end to end. Small loan-approval model
+  trained, wrapped in a FastAPI app via `build_app`, every
+  endpoint exercised through FastAPI's `TestClient`:
+  `/healthz` (liveness + module stats), `/schema` (net
+  inventory for client SDK generators), `/forward`
+  (per-event inference), `/anomaly` (trace conformance),
+  `/counterfactual` (flip-point search), `/sensitivity`
+  (gradient ranking), plus the auto-generated
+  `/openapi.json` schema. The engine-integration walkthrough
+  that closes the deployment story without needing a real
+  workflow engine on the box. Eight tests.
+
+With this scenario all seven of the originally-pending
+worked-example scenarios are now landed.
 - **Auto-built MkDocs Material documentation site** deployed on
   every push to `main`. URL:
   <https://pcoz.github.io/formally-verified-learnable-process-intelligence/>.

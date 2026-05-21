@@ -1,0 +1,115 @@
+# REST serving — train a model, expose it over HTTP, exercise
+# every endpoint a non-Python client would use.
+#
+# This scenario closes the engine-integration story for
+# consumers that aren't Python. A workflow engine — Camunda,
+# Activiti, Flowable, or anything else that emits structured
+# audit events — calls PETRA's REST surface over HTTP for each
+# event-of-interest and gets back per-transition activations,
+# anomaly scores, counterfactuals, and sensitivity reports as
+# JSON. No language bridge, no SDK, just HTTP.
+#
+# Six endpoints get exercised in the test:
+#
+#   GET  /healthz         — liveness + module stats
+#   GET  /schema          — places, transitions, labels,
+#                           initial marking
+#   POST /forward         — per-transition activations from an
+#                           input marking
+#   POST /anomaly         — trace-level + per-transition
+#                           residuals from an event sequence
+#   POST /counterfactual  — find the input flip-point for a
+#                           target transition
+#   POST /sensitivity     — gradient ranking of inputs the
+#                           model leans on
+#
+# The trained model is a small loan-approval XOR-routing net —
+# risk_score in [0, 1] drives approve / decline. The trace
+# distribution is biased so the trained crossover lands near
+# 0.5, giving the counterfactual and anomaly tests a clean
+# decision boundary to point at.
+
+[scenario]
+name = "rest_serving"
+description = "Phase 14 REST inference API: train a small loan-approval model, build a FastAPI app over it, exercise every endpoint a non-Python client would call."
+
+[net]
+source = "inline"
+
+[[net.places]]
+id = "p_application"
+tokens = 1
+label = "application under review"
+[[net.places]]
+id = "p_approved"
+label = "approved"
+[[net.places]]
+id = "p_declined"
+label = "declined"
+
+[[net.transitions]]
+id = "t_approve"
+label = "approve loan"
+[[net.transitions]]
+id = "t_decline"
+label = "decline loan"
+
+[[net.arcs]]
+src = "p_application"
+dst = "t_approve"
+[[net.arcs]]
+src = "t_approve"
+dst = "p_approved"
+
+[[net.arcs]]
+src = "p_application"
+dst = "t_decline"
+[[net.arcs]]
+src = "t_decline"
+dst = "p_declined"
+
+[traces]
+source = "inline"
+
+[[traces.inline]]
+attributes = { risk_score = "0.9" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { risk_score = "0.8" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { risk_score = "0.85" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { risk_score = "0.75" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { risk_score = "0.95" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { risk_score = "0.1" }
+events = ["decline loan"]
+[[traces.inline]]
+attributes = { risk_score = "0.15" }
+events = ["decline loan"]
+[[traces.inline]]
+attributes = { risk_score = "0.2" }
+events = ["decline loan"]
+[[traces.inline]]
+attributes = { risk_score = "0.25" }
+events = ["decline loan"]
+[[traces.inline]]
+attributes = { risk_score = "0.05" }
+events = ["decline loan"]
+
+[training.input_marking]
+p_application = { attribute = "risk_score" }
+
+[training]
+steps = 600
+lr = 0.1
+sharpness = 6.0
+firing = "sigmoid"
+routing = "independent"
+num_steps = 0
+seed = 0

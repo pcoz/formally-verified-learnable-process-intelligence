@@ -170,6 +170,7 @@ boilerplate).
 | `regulator_ready_credit_approval/` | Phase 13 full diagnostic toolkit — bootstrap CIs + counterfactuals + sensitivity + prose | Coloured-token loan-approval net instrumented with all four Phase 13 outputs; bootstrap CI brackets the empirical decision band, counterfactual flips a declined application at the right amount, sensitivity confirms the model leans on the amount input, prose helpers substitute domain labels for raw place ids. |
 | `realtime_monitoring/` | Phase 14 streaming evaluator | Simplified incident-management net trained on the happy-path lifecycle; an interleaved live stream of three cases (two normal, one anomalous that skips *Resolved*) goes through `StreamingEvaluator`; anomalous case scores strictly higher and the residual pins to `t_resolved` — the actionable alert signal. |
 | `onnx_deployment/` | Phase 14 ONNX export | Loan-approval XOR-routing net trained from inline traces, exported to `.onnx`, parity-checked against the torch forward pass under `onnxruntime` — 1e-4 numerical agreement, dynamic batch axis, routing decisions identical across runtimes. |
+| `rest_serving/` | Phase 14 REST inference API + CLI | Loan-approval XOR-routing net trained, wrapped in a FastAPI app via `build_app`, every endpoint exercised through `TestClient`: liveness, schema, forward, anomaly, counterfactual, sensitivity, OpenAPI auto-doc. The engine-integration walkthrough that closes the deployment story without needing a real workflow engine on the box. |
 
 **Framework shortcoming discovered and fixed during scenario
 validation:** `find_xor_groups` originally only detected single-input
@@ -1181,11 +1182,21 @@ roughly):
   bridge to JVM / C++ / browser / mobile / accelerator
   deployments.
 
-- [ ] **`rest_serving/`** — `petra-train` → `petra-serve` →
-  client script (in Python AND in plain `curl`) exercising
-  each endpoint. The closest thing to an end-to-end engine-
-  integration walkthrough that doesn't need a real workflow
-  engine on the box. Demonstrates Phase 14 REST + CLI.
+- [x] **`rest_serving/`** — small loan-approval XOR-routing
+  model trained from inline traces, wrapped in a FastAPI app
+  via `build_app(module)`, exercised end-to-end through
+  FastAPI's `TestClient`. Eight tests pin every endpoint:
+  `/healthz` reports module stats; `/schema` returns the
+  net's structural inventory; `/forward` routes high
+  risk_score to approve and low to decline; `/anomaly`
+  scores a non-conforming trace higher than a conforming
+  one; `/counterfactual` finds the flip-point for a declined
+  application; `/sensitivity` reports a non-zero
+  marking-channel gradient on the routing input; the
+  auto-generated `/openapi.json` is reachable for
+  client-side SDK generators. README documents the
+  `petra-train` → `petra-serve` → `curl` production
+  deployment shape. Demonstrates Phase 14 REST + CLI.
 
 The patterns documented in `INTEGRATION_PATTERNS.md` overlap
 with several of these (in particular the REST and streaming
