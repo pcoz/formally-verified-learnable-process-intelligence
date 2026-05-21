@@ -167,6 +167,7 @@ boilerplate).
 | `discover_and_train_pipeline/` | Phase 12 — basic Inductive Miner + the new `net.source = "discover"` adapter keyword | Synthetic four-trace loan-approval log with sequence / parallel / exclusive-choice cuts is mined to a sound Petri net via `load_scenario`; replay invariant + training-loss convergence both pinned by the test. |
 | `safe_refactoring/` | Phase 11 weak bisimulation + Phase 13 cross-variant comparison + Phase 13 bootstrap CIs | Two structurally-different variants of a loan-approval process (Variant A; Variant B with a silent audit-log step) are proved weakly bisimilar despite differing in shape; cross-variant comparison shows hard-agreement across the credit-score domain; bootstrap CIs on each variant's distilled rule overlap. |
 | `compliance_audit/` | Phase 11 Aalst soundness + deadlock localisation + CTL model checking | Loan-approval process with two regulatory CTL invariants (`AG (approve → AF audit_logged)`, `AG (decline_enabled → credit_checked)`); the deliberately-broken variant that bypasses the audit step fails the CTL invariant with a counterexample marking witnessing the violation. |
+| `regulator_ready_credit_approval/` | Phase 13 full diagnostic toolkit — bootstrap CIs + counterfactuals + sensitivity + prose | Coloured-token loan-approval net instrumented with all four Phase 13 outputs; bootstrap CI brackets the empirical decision band, counterfactual flips a declined application at the right amount, sensitivity confirms the model leans on the amount input, prose helpers substitute domain labels for raw place ids. |
 
 **Framework shortcoming discovered and fixed during scenario
 validation:** `find_xor_groups` originally only detected single-input
@@ -1135,13 +1136,21 @@ roughly):
   deadlock localisation + CTL. Seven tests in
   `tests/scenarios/test_compliance_audit.py`.
 
-- [ ] **`regulator_ready_credit_approval/`** — extend
-  `credit_approval_coloured` to demonstrate the **bootstrap CI**
-  on the learned threshold, **counterfactual** analysis on a
-  declined application, **sensitivity** ranking of which inputs
-  the model leans on, and the prose-generation helpers
-  producing regulator-facing text. Demonstrates Phase 13's
-  full diagnostic toolkit applied to a single business case.
+- [x] **`regulator_ready_credit_approval/`** — coloured-token
+  loan-approval net with the full Phase 13 diagnostic surface
+  attached. Six tests pin: trained guard threshold lands in
+  band; counterfactual binary-search on a declined £300
+  application finds a flip point in the empirical decision
+  band; sensitivity analysis confirms the application amount
+  as the dominant input; prose helpers render counterfactual
+  and sensitivity reports with `"application amount"`
+  substituted for the raw place id; a custom bootstrap loop
+  over the trace list produces a non-degenerate percentile CI
+  on the learned guard threshold. The combination is the
+  shape regulators (GDPR Article 22, SR 11-7, EU AI Act)
+  expect of a trained decisioning model. Demonstrates Phase
+  13's bootstrap CIs + counterfactuals + sensitivity + prose
+  applied to a single business case.
 
 - [ ] **`realtime_monitoring/`** — a streaming evaluator
   subscribing to a simulated event source (file-tail or

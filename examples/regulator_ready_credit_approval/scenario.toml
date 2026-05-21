@@ -1,0 +1,141 @@
+# Regulator-ready credit approval — the full Phase 13 diagnostic
+# toolkit applied to a coloured-Petri-net loan-approval process.
+#
+# Same shape of process as `credit_approval_coloured/` —
+# tokens at p_application carry the application amount as their
+# value, and structural guards on the approve / decline
+# transitions route the application based on that value. The
+# guard thresholds (initialised at 1000 from the TOML) are
+# learnable nn.Parameters that training refines against the
+# observed routing in the trace data.
+#
+# What this scenario adds on top is the diagnostic surface a
+# regulator would expect on every model used in decisioning:
+#
+#   * **Bootstrap confidence intervals** on the learned guard
+#     threshold — not just "the model learned X" but "the model
+#     learned X plus-or-minus Y with N% confidence over K
+#     resamples". Quantifies the training uncertainty in a way
+#     a stipulated rule cannot.
+#
+#   * **Counterfactual explanations** on declined applications
+#     — "the application was declined at amount 300; the
+#     decision would have flipped at amount A". A counterfactual
+#     names the specific actionable input change that would have
+#     changed the outcome, in domain units.
+#
+#   * **Sensitivity ranking** — which inputs the trained model
+#     leans on most for its decision, by gradient magnitude at
+#     a representative base point. Confirms the model isn't
+#     accidentally reading some unrelated input as a routing
+#     signal.
+#
+#   * **Plain-English prose** rendered from each of the above
+#     for inclusion in regulator-facing model documentation —
+#     no Python, no maths, just the model's own self-report.
+#
+# These four together are what makes a trained decisioning
+# model regulator-ready in the post-GDPR / SR-11-7 / EU-AI-Act
+# sense: every prediction is auditable in terms of *what would
+# have flipped it* and *which inputs it leaned on*, with
+# uncertainty quantified.
+#
+# The trace data and training hyperparameters here are
+# identical to `credit_approval_coloured/`. The framework
+# elements exercised are different: the existing scenario
+# pins the training-converges-and-routes-correctly claim; this
+# scenario pins the diagnostic-toolkit-produces-regulator-
+# readable-artefacts claim on top.
+
+[scenario]
+name = "regulator_ready_credit_approval"
+description = "Phase 13 diagnostic toolkit (bootstrap CIs, counterfactuals, sensitivity, prose) applied to a coloured-token loan-approval process; produces regulator-ready model-explanation artefacts."
+
+[net]
+source = "inline"
+
+[[net.places]]
+id = "p_application"
+label = "application received"
+[[net.places]]
+id = "p_approved"
+label = "application approved"
+[[net.places]]
+id = "p_declined"
+label = "application declined"
+
+[[net.transitions]]
+id = "t_approve"
+label = "approve loan"
+guard = { place = "p_application", op = ">=", value = 1000.0 }
+
+[[net.transitions]]
+id = "t_decline"
+label = "decline loan"
+guard = { place = "p_application", op = "<", value = 1000.0 }
+
+[[net.arcs]]
+src = "p_application"
+dst = "t_approve"
+[[net.arcs]]
+src = "t_approve"
+dst = "p_approved"
+
+[[net.arcs]]
+src = "p_application"
+dst = "t_decline"
+[[net.arcs]]
+src = "t_decline"
+dst = "p_declined"
+
+[traces]
+source = "inline"
+
+[[traces.inline]]
+attributes = { amount = "5000" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { amount = "12000" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { amount = "2500" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { amount = "8000" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { amount = "3200" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { amount = "1500" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { amount = "200" }
+events = ["decline loan"]
+[[traces.inline]]
+attributes = { amount = "750" }
+events = ["decline loan"]
+[[traces.inline]]
+attributes = { amount = "400" }
+events = ["decline loan"]
+[[traces.inline]]
+attributes = { amount = "900" }
+events = ["decline loan"]
+[[traces.inline]]
+attributes = { amount = "150" }
+events = ["decline loan"]
+[[traces.inline]]
+attributes = { amount = "600" }
+events = ["decline loan"]
+
+[training]
+steps = 800
+lr = 0.5
+sharpness = 1.0
+seed = 0
+
+[training.input_marking]
+p_application = { constant = 1.0 }
+
+[training.input_values]
+p_application = { attribute = "amount" }

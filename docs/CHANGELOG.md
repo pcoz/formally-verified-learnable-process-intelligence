@@ -58,6 +58,14 @@ breaking changes to the existing surface).
   witnessing the violation. Demonstrates Phase 11 Aalst
   soundness + deadlock localisation + CTL model checking in a
   single end-to-end compliance story. Seven tests.
+- **`examples/regulator_ready_credit_approval/`** worked-example
+  scenario — coloured-token loan-approval net instrumented with
+  Phase 13's full diagnostic toolkit (bootstrap CI on the
+  learned guard threshold, counterfactual flipping a declined
+  application, sensitivity ranking, prose helpers with domain
+  labels). The combination is the model-explanation shape
+  regulators (GDPR Article 22, SR 11-7, EU AI Act) expect on
+  trained decisioning models. Six tests.
 - **Auto-built MkDocs Material documentation site** deployed on
   every push to `main`. URL:
   <https://pcoz.github.io/formally-verified-learnable-process-intelligence/>.

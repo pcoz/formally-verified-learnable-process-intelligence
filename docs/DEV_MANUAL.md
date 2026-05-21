@@ -871,6 +871,7 @@ Current scenarios:
 | `discover_and_train_pipeline/` | Phase 12 native log-to-net discovery via the basic Inductive Miner plus the adapter's `net.source = "discover"` keyword — full `discover → verify → compile → train` pipeline from a TOML config with no Petri net supplied. |
 | `safe_refactoring/` | Phase 11 weak bisimulation + Phase 13 cross-variant comparison + bootstrap CIs — two structurally-different loan-approval variants (with vs without a silent audit-log step) proved equivalent under weak bisim, soft-routing compared across the credit-score domain, distilled rules' CIs overlapping. |
 | `compliance_audit/` | Phase 11 Aalst soundness + deadlock localisation + CTL — regulatory invariants on a loan-approval process verified mechanically; deliberately-broken variant that bypasses the audit step fails the CTL invariant with a counterexample marking. |
+| `regulator_ready_credit_approval/` | Phase 13 full diagnostic surface — bootstrap CIs, counterfactuals, sensitivity, prose — applied to a coloured-token loan-approval net to produce the model-explanation artefacts a modern decisioning regulator expects (GDPR Article 22, SR 11-7, EU AI Act). |
 
 ---
 
@@ -968,5 +969,5 @@ python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
 
-Current test count: 468 passing across the framework and the
+Current test count: 474 passing across the framework and the
 end-to-end scenarios.
