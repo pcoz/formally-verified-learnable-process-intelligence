@@ -890,6 +890,212 @@ can't complete cleanly" (the soundness summary) but "here's
 exactly the token configuration where it gets stuck" (the actionable
 detail).
 
+### When the process might not be bounded: coverability analysis
+
+The soundness check above assumes the process is *bounded* —
+no place can hold more than some finite number of tokens. Most
+well-designed business processes are bounded by construction (a
+loan application is one piece of work in flight; a lock holds
+one token at a time). Some aren't, and the unbounded ones can
+be far harder to spot than they look.
+
+**Three real-world places where this happens:**
+
+1. **Banking — the unmatched-payment reconciliation queue.**
+   Incoming payments are auto-matched against a counterparty
+   register; the ones that fail to match drop into a manual
+   reconciliation queue. The intake rate is set by overall
+   transaction volume (an external thing, not something the
+   process controls); the drain rate is set by the
+   reconciliation team's throughput. If the modelled workflow
+   has no explicit *write-off after N days* arc or *force-route
+   to a fallback queue* arc, the unmatched-queue place is
+   structurally unbounded — the inflow is unbounded above and
+   the outflow carries no guarantee of keeping pace.
+   End-of-quarter transaction surges then age stuck payments
+   into regulatory-reporting deadlines, and the team meets the
+   unboundedness as a compliance incident rather than as a
+   property of the model they signed off on twelve months
+   earlier.
+
+2. **Healthcare — the specialty-referral waiting list.** GPs
+   refer patients into a specialty clinic; the clinic has a
+   finite number of appointment slots per week, set by
+   clinician headcount and rota length. The *awaiting first
+   appointment* place fills at the referral rate and drains at
+   the slot rate. Without an explicit *redirect to alternative
+   provider* arc or *decline referral as inappropriate* arc,
+   the waiting place is unbounded in the model — and frequently
+   in reality, where the headline NHS 18-week target breaches
+   are precisely this pattern surfacing in practice.
+   Coverability would have flagged the place as unbounded
+   before the first patient was referred; the structural
+   diagnosis predates any data.
+
+3. **Manufacturing — work-in-progress at the bottleneck
+   station.** Upstream production cells feed a finishing station
+   at one rate; the finishing station processes parts at a
+   lower rate. Without an explicit WIP cap — a kanban
+   constraint, a buffer-full inhibitor arc, or an
+   overflow-to-rework path — the WIP queue at the bottleneck
+   is structurally unbounded. Lean manufacturing is built
+   around engineering exactly this unboundedness out (Toyota's
+   pull system is, at its formal core, a coverability fix).
+   Most ERP-modelled processes that haven't been Lean-audited
+   still contain the structural unboundedness; the inventory
+   blowing through warehouse capacity each peak season is the
+   bill.
+
+Each is a different industry, same structural shape: a place
+fed at a rate the model never explicitly bounds against the
+drain rate. PETRA's coverability question — *"is this place
+bounded?"* — is the same question a Lean consultant or a
+capacity planner is asking, made formal and mechanically
+checkable.
+
+**The question coverability analysis answers is: "Can any place
+in this process accumulate work without limit?"** A queue
+drained faster than it's filled is bounded. A queue filled
+faster than it's drained is not — and that's a model bug
+waiting to surface as a production incident on a Friday
+afternoon.
+
+PETRA's `coverability_graph(net)` computes the **Karp-Miller
+coverability tree** and reports, for each place, either its
+maximum reachable token count (an integer) or the symbol **ω**
+("arbitrarily many"). A net with no ω-places is bounded; one
+with even a single ω-place is structurally unbounded
+*somewhere*, and the report names exactly where.
+
+#### Where the analysis hits a wall: inhibitor arcs
+
+There is one specific case where the coverability question
+stops having a clean answer: **nets that use inhibitor arcs.**
+When inhibitor arcs are involved, PETRA still produces a
+coverability report, but it is deliberately *conservative* — it
+may say a place is unbounded when in fact it is not. The
+report can have false positives; it never has false negatives.
+
+This is not a PETRA limitation, and the same is true of every
+other tool you will encounter — CPN Tools, GreatSPN, TINA,
+ProM, every academic prototype. It is a *mathematical* limit.
+The rest of this subsection explains why, because the first
+time you meet it the result will look like a tool bug. It is
+not.
+
+#### The scenario that will trip you up
+
+You are modelling a refund process. The model has a
+*fraud-investigation-open* place and a *refund-issue*
+transition with an inhibitor arc from the investigation place:
+refunds can only fire when no investigation is open. You have
+designed the process carefully — the investigation place holds
+at most one token at a time, you can demonstrate it by hand,
+and a half-day of walking the token game produces no unbounded
+marking.
+
+You run PETRA's coverability check, and it flags the
+*refund-pending* place as **unbounded**. You stare at it. You
+inspect the model. The inhibitor arc is right where it should
+be, the mutex logic is correct, and the manual simulation
+agrees with your intuition. The report is plainly wrong.
+
+You try a different tool. It either declines to answer (gives
+up with "cannot decide for nets of this class") or it gives
+you a *different* conservative answer that does not quite
+match PETRA's. You read the academic literature. You find
+several papers describing several conservative algorithms,
+each with its own overreport pattern, none of them offering
+the clean yes/no you wanted.
+
+At this point it begins to look as if the entire field has
+missed something obvious. Either inhibitor-arc coverability
+has been solved and the tools have not caught up, or it has
+not, in which case how is anyone supposed to analyse anything?
+
+#### Why this is actually irreconcilable
+
+It is not tool incompetence. The reason is older and deeper
+than software.
+
+**Plain Petri nets are formally weaker than a general-purpose
+computer.** They model concurrency well, but there are
+problems they cannot compute. They sit in a known,
+well-behaved corner of the theoretical landscape, and
+coverability for plain Petri nets is *decidable* — the
+Karp-Miller algorithm always terminates with the correct
+answer in finite time.
+
+**Adding inhibitor arcs makes Petri nets exactly as powerful
+as a general-purpose computer.** This is not an analogy. There
+is a classical construction, going back to Marvin Minsky in
+1967, that shows you can simulate any computer program
+whatsoever — in any programming language, of any size — using
+a Petri net with inhibitor arcs. The inhibitor is the missing
+piece that lets the net test whether a counter is zero, and
+once a model can test for zero it can build arithmetic,
+control flow, loops, and everything else a computer does.
+
+**Once a model is computer-equivalent, "is this place
+bounded?" becomes equivalent to "does this program halt?"**
+Asking whether a counter ever exceeds some limit is the same
+*shape* of question as asking whether a program will
+eventually terminate. The halting problem — *can we write an
+algorithm that, given any program, decides whether it halts?*
+— was proved unsolvable by Alan Turing in 1936. No such
+algorithm exists, and none ever will. It is not that nobody
+has found it; it is that mathematics has ruled it out, for
+the same reason there is no integer that is both even and
+odd.
+
+So when PETRA reports a conservative answer on an inhibitor-arc
+net, what is happening is this: producing a perfect answer
+would require solving the halting problem, which is provably
+impossible. Every tool in the world is in the same position.
+The choices available to any analyser are (a) refuse to answer
+at all, (b) give a conservative overreport (PETRA's choice),
+or (c) impose a finite cap on the analysis and report only
+what fits inside it.
+
+#### What to do about it in practice
+
+There are three workable options, in increasing order of
+effort:
+
+1. **Accept the conservative answer.** If PETRA flags a place
+   as potentially unbounded and the distinction does not
+   matter to you (perhaps the place obviously bounds itself by
+   domain logic — *"there is only ever one refund in flight
+   per case"*), document the constraint as a comment in the
+   model and move on. The conservative report does not mean
+   the process is broken; it means the analyser cannot prove
+   it is not.
+
+2. **Bound the inhibitor place explicitly.** If you can
+   declare a *capacity* on the inhibitor place — *"this place
+   holds at most one token, ever"* — and bake that into the
+   model, the analyser has more information to work with and
+   the conservative overreport sometimes goes away.
+
+3. **Replace the inhibitor with a structural mutex.** Most
+   inhibitor patterns can be rewritten as a *resource place*
+   that is consumed at acquisition and replenished at release
+   — the [`resource_lock`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/resource_lock)
+   scenario shows the pattern. A resource-place mutex sits
+   inside the plain-Petri-net corner of the landscape and
+   admits a fully decidable coverability answer. Refactoring
+   the inhibitor into a resource is the strongest fix, at the
+   cost of a slightly larger model.
+
+The first time you hit a conservative coverability report on
+an inhibitor-arc net is not a sign of a problem with PETRA or
+with your model. It is a signal that the model has reached the
+boundary where computability stops being free — and that
+boundary is real, mathematical, and almost a hundred years
+old. Navigating around it is part of working with formal
+models. PETRA's job is to be honest about where the boundary
+lies, not to pretend the boundary does not exist.
+
 ### Why this matters
 
 Currently, most BPMN tools catch only *syntactic* errors — *"this
@@ -1111,6 +1317,104 @@ compliance-flagged traces to investigate.
 None of these outputs requires a multi-month consulting
 engagement to produce. They are mechanical, repeatable, auditable
 artefacts.
+
+---
+
+## 22. Possible future directions: from a verified substrate toward self-organising systems
+
+A natural follow-on question to everything in this guide is: *to
+what extent does this framework permit the creation of an
+intelligent, self-organising, tractable computer system, as
+opposed to the static systems we have today?* PETRA's structural
+commitments give a precise answer, and the answer is more
+interesting than either "yes, fully" or "no, not really."
+
+### What PETRA gives you that static systems don't
+
+The substrate combines four properties that don't normally
+coexist:
+
+1. **Fixed structure, learned dynamics.** The place / transition
+   graph is a hard constraint; the weights inside it are learned
+   from execution traces. That inverts the usual ML
+   hypothesis-space problem — instead of searching all possible
+   behaviours, the search is constrained to behaviours admissible
+   by the topology. That is what keeps the system tractable. Most
+   "intelligent self-organising" pitches drown in the size of
+   their own hypothesis space; PETRA does not, because the
+   topology nails it down.
+2. **Provable equivalence under refactoring.** Bisimulation
+   (strong and weak) lets a system reshape itself and prove the
+   reshaping didn't change observable behaviour. That is the
+   missing ingredient for safe self-modification — without it, a
+   self-organising system has no way to distinguish *"I improved
+   myself"* from *"I broke myself in a way I haven't noticed
+   yet."*
+3. **Cost-ranked refactoring with realised-data cost models.**
+   The system can rank candidate restructurings by *actual
+   observed* cost, not stipulated cost. That converts
+   self-organisation from "try things and hope" into "try things,
+   prove they're equivalent, pick the cheaper one." Software
+   engineering's iterate-fast culture became possible once
+   refactoring became safe; PETRA generalises that to
+   process-shaped systems.
+4. **Structural soundness and coverability checks.** The system
+   can ask itself *"am I still well-formed?"* and *"am I about to
+   accumulate work without limit?"* before committing to a
+   change. That is the guardrail against chaos.
+
+### What it doesn't give you
+
+- **Topology change.** The structure is fixed at compile time. A
+  self-organising system that wants to add genuinely new places
+  or transitions is outside PETRA's substrate; it would need a
+  *candidate-generator* wrapped around PETRA that proposes
+  structural variants, with PETRA verifying and ranking them. The
+  roadmap names this gap explicitly.
+- **Open-ended goal formation.** PETRA learns dynamics over a
+  given topology toward a given training signal. It does not
+  invent objectives.
+- **Continuous-state physics.** Discrete-event only. A
+  self-organising system whose interesting dynamics are
+  continuous (fluid, mechanical, analogue) is the wrong shape for
+  this substrate.
+
+### Why it doesn't descend into chaos
+
+Three of the four guardrails are *structural* rather than
+*learned*, which means they cannot be optimised away by training:
+
+- Topology is fixed (cannot grow unboundedly during learning).
+- Bisimulation is computed pre-training; equivalence is a
+  structural property of the graph.
+- Soundness and coverability are decidable on the structure alone
+  (except for the inhibitor-arc case, where coverability becomes
+  Turing-undecidable and PETRA opts for conservative reporting —
+  that is the limit of formal tractability, and PETRA stays
+  inside it by being honest about the boundary; see §17 for the
+  long-form treatment).
+
+The learned part — weights, thresholds — sits *underneath* these
+guardrails and cannot break them. That is the architectural
+reason chaos is bounded.
+
+### The honest framing
+
+PETRA is not a self-organising system. It is the *substrate* on
+which a self-organising system could be built without descending
+into chaos, by handing the structural-verification problem to
+PETRA and keeping the topology-change problem outside. The
+combination *learned dynamics + structural verification +
+cost-ranked refactoring + bounded-by-construction guardrails* is
+what would make such a system tractable; PETRA delivers that
+combination. The candidate-generator, the goal-former, the
+topology-mutator — those are the layers that would have to sit on
+top, and they are deliberately not in scope.
+
+That is the difference between today's static systems and what
+PETRA points at: today's systems cannot iterate on themselves
+with confidence; a PETRA-grounded system can, because every
+iteration is verified, ranked, and bounded before it ships.
 
 ---
 

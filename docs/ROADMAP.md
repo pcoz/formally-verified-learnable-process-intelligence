@@ -729,8 +729,26 @@ story depends on having more to offer than the floor.
   root-cause state of an option-to-complete failure — gives a
   process owner a specific named token configuration to look at
   instead of just "this net doesn't complete cleanly".
-- [ ] **Coverability analysis.** For unbounded nets, identify
-  *which* places are the ones blowing up.
+- [x] **Coverability analysis.** ``petri_net_nn.coverability``
+  exposes ``coverability_graph(net)`` and the one-line
+  ``is_bounded(net)`` wrapper. The Karp-Miller construction
+  builds the coverability tree, replacing token counts with the
+  ω sentinel at every place that strictly exceeds an ancestor
+  on the path from the root. A ``CoverabilityReport`` returns
+  ``is_bounded``, the list of unbounded place names, per-place
+  upper bounds (integer for bounded places, ω for unbounded
+  ones), and the ω-marking witnesses that pin where the
+  unboundedness shows up. Sound and exact on nets without
+  inhibitor arcs; conservative (may overreport unboundedness)
+  on nets that use them — the inhibitor-arc + plain-Petri-net
+  combination is Turing-complete (Minsky 1967), so exact
+  coverability would solve the halting problem (Turing 1936).
+  ``BUSINESS_ANALYST_GUIDE.md`` §17 carries a long-form
+  treatment of why that boundary is mathematical rather than a
+  missing feature, with three industry examples of where the
+  unbounded-place pattern shows up in practice
+  (payment-reconciliation queues, specialty-referral waiting
+  lists, manufacturing WIP at bottlenecks).
 
 ## Phase 12 — Discovering the net from traces *(later)*
 

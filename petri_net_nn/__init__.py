@@ -23,6 +23,12 @@ from petri_net_nn.bisimulation import (
     weak_bisimulation_equivalence_classes,
 )
 from petri_net_nn.bpmn import parse_bpmn
+from petri_net_nn.coverability import (
+    OMEGA,
+    CoverabilityReport,
+    coverability_graph,
+    is_bounded,
+)
 from petri_net_nn.ctl import (
     AF,
     AG,
@@ -142,6 +148,7 @@ __all__ = [
     "Atom",
     "ComparisonReport",
     "Counterfactual",
+    "CoverabilityReport",
     "CTLResult",
     "DisagreementSample",
     "ExclusiveChoice",
@@ -153,6 +160,7 @@ __all__ = [
     "FrequencyBaseline",
     "Loop",
     "Not",
+    "OMEGA",
     "Or",
     "Parallel",
     "PetriNet",
@@ -188,6 +196,7 @@ __all__ = [
     "check_ctl",
     "check_soundness",
     "compare_variants",
+    "coverability_graph",
     "discover_and_train",
     "discover_inductive",
     "conj",
@@ -208,6 +217,7 @@ __all__ = [
     "find_xor_groups",
     "implies",
     "input_importance",
+    "is_bounded",
     "insert_event",
     "load_scenario",
     "parse_bpmn",
