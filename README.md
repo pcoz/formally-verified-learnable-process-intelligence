@@ -182,6 +182,13 @@ trained against the same log. Every capability above —
 rule extraction, anomaly scoring, counterfactuals, sensitivity,
 bisimulation, CTL, cost ranking — applies unchanged.
 
+The same pipeline runs declaratively from a TOML config: see
+[`examples/discover_and_train_pipeline/`](examples/discover_and_train_pipeline/)
+for the worked artefact — `net.source = "discover"` in the
+scenario config invokes the Inductive Miner directly from
+`load_scenario`, with end-to-end test coverage pinning
+soundness, replay, and training-loss convergence.
+
 **Honest framing.** *PETRA discovers structure from
 clean-to-moderately-noisy logs, and uniquely couples that
 discovery with a trainable, formally-verifiable, interpretable

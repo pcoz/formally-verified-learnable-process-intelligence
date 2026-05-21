@@ -1,0 +1,82 @@
+# Native log-to-net discovery + training, end to end.
+#
+# Most PETRA scenarios hand the framework a Petri net up front
+# (either parsed from BPMN, loaded from PNML, or declared inline
+# in this TOML file) and then train weights inside that fixed
+# structure. This scenario demonstrates the opposite path: only
+# a log is supplied, and PETRA discovers the structure itself
+# via the basic Inductive Miner before training on the same
+# log.
+#
+# The net.source = "discover" keyword tells the adapter to mine
+# the structure from the traces below. The discovered net is
+# sound by construction (option to complete, proper completion,
+# no dead transitions all hold for any output of basic IM).
+#
+# The synthetic log here encodes a deliberately illustrative
+# process — a small loan-approval-style flow with three cut
+# shapes the Inductive Miner can recognise:
+#
+#   request → ( verify_id || credit_check ) → review →
+#                                              ( approve | decline ) → close
+#
+# Read: a sequence of five steps, where the two verification
+# activities run in parallel (interleaved in any order in any
+# given trace), and the decision is exclusive (each trace either
+# approves or declines, never both). Four traces are enough to
+# cover both interleavings of the parallel block and both
+# branches of the exclusive choice; the basic IM picks the cut
+# shapes up unambiguously.
+#
+# The scope is honest: this scenario demonstrates the discovery
+# *pipeline* on a clean, well-structured log. Noisy real-world
+# logs may collapse into the flower-model fallback the README's
+# honest-framing section describes — for those, ProM's
+# infrequent-noise filters remain the recommended preprocessing
+# step before handing the result to PETRA.
+
+[scenario]
+name = "discover_and_train_pipeline"
+description = "Native log-to-net discovery via the Inductive Miner, then end-to-end training on the same log. Demonstrates Phase 12."
+
+[net]
+# The whole point of this scenario: no structural model
+# supplied. The Inductive Miner reads the traces below and
+# mines a sound Petri net automatically.
+source = "discover"
+
+[traces]
+source = "inline"
+
+[[traces.inline]]
+events = ["request", "verify_id", "credit_check", "review", "approve", "close"]
+
+[[traces.inline]]
+events = ["request", "credit_check", "verify_id", "review", "approve", "close"]
+
+[[traces.inline]]
+events = ["request", "verify_id", "credit_check", "review", "decline", "close"]
+
+[[traces.inline]]
+events = ["request", "credit_check", "verify_id", "review", "decline", "close"]
+
+[training.input_marking]
+# The discovered net always uses `p_0` as the source place —
+# the Inductive Miner's translator emits canonical anonymous
+# place names with `p_0` carrying the single initial token.
+# The training step feeds a unit activation there so the
+# trainer can propagate signal through the full mined topology.
+p_0 = { constant = 1.0 }
+
+[training]
+steps = 200
+lr = 0.1
+sharpness = 1.0
+firing = "sigmoid"
+routing = "independent"
+num_steps = 0
+seed = 0
+
+[interpretability]
+extract_xor_rules = false
+extract_and_join_rules = false

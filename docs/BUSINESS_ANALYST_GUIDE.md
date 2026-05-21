@@ -1257,7 +1257,10 @@ on its own. For very noisy logs, classical process-mining
 tools like ProM remain a sensible pre-filtering step; PETRA
 will happily read their PNML output. See
 *[Don't have a Petri net yet?](https://github.com/pcoz/formally-verified-learnable-process-intelligence#dont-have-a-petri-net-yet-native-discovery-from-logs)*
-in the README for the honest framing.)
+in the README for the honest framing, and the
+[`discover_and_train_pipeline/`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/discover_and_train_pipeline)
+scenario for the worked artefact — the full log-to-trained-model
+pipeline as a single TOML config.)
 
 PETRA plugs into the wider ecosystem through standard
 formats:

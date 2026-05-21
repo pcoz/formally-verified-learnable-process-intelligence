@@ -245,8 +245,11 @@ def load_scenario(config_path: str | Path) -> ScenarioContext:
     name = scenario.get("name", path.stem)
     description = scenario.get("description", "")
 
-    net = _load_net(config.get("net", {}), config_dir)
+    # Traces load first because `[net] source = "discover"` needs them
+    # as input to the Inductive Miner. For every other net source the
+    # two are independent, so the reordering is transparent.
     traces = _load_traces(config.get("traces", {}), config_dir)
+    net = _load_net(config.get("net", {}), config_dir, traces=traces)
     training_dict = config.get("training", {}) or {}
     input_marking_spec = training_dict.pop("input_marking", {}) or {}
     input_values_spec = training_dict.pop("input_values", {}) or {}
@@ -313,8 +316,32 @@ def _build_guard(spec: dict[str, Any] | None):
     return guard
 
 
-def _load_net(spec: dict[str, Any], config_dir: Path) -> PetriNet:
+def _load_net(
+    spec: dict[str, Any],
+    config_dir: Path,
+    *,
+    traces: list[XESTrace] | None = None,
+) -> PetriNet:
     source = spec.get("source")
+    if source == "discover":
+        # Native log-to-net discovery via the basic Inductive Miner.
+        # The miner reads only the activity-name sequences from the
+        # traces; attributes and timestamps are ignored at this step
+        # (they're still available later for training and anomaly
+        # scoring through the standard pipeline). Output is sound by
+        # construction — option-to-complete, proper completion, no
+        # dead transitions all hold for any output of basic IM.
+        if not traces:
+            raise ValueError(
+                "net.source='discover' requires a non-empty [traces] "
+                "section; the Inductive Miner mines structure from "
+                "the traces it's given and has nothing to do without them"
+            )
+        # Late-imported to avoid a discovery-on-import cost for the
+        # majority of scenarios that ship their own net.
+        from petri_net_nn.discovery import discover_inductive
+
+        return discover_inductive(traces)
     if source == "bpmn_file":
         path_value = spec.get("path")
         if not path_value:
@@ -391,8 +418,8 @@ def _load_net(spec: dict[str, Any], config_dir: Path) -> PetriNet:
             net.add_inhibitor_arc(inh["place"], inh["transition"])
         return net
     raise ValueError(
-        f"net.source must be 'bpmn_file', 'pnml_file', 'sif_file', or "
-        f"'inline', got {source!r}"
+        f"net.source must be 'bpmn_file', 'pnml_file', 'sif_file', "
+        f"'inline', or 'discover'; got {source!r}"
     )
 
 

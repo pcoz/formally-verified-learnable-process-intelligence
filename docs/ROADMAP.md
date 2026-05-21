@@ -164,6 +164,7 @@ boilerplate).
 | `credit_approval_coloured/` | Phase 9 coloured tokens + Phase 9 follow-up CPN-aware compiler | Token-game routing on application amount; trained guard threshold lands in the empirical decision band 900–1500 from the hand-set 1000. |
 | `incident_management/` | Phase 10 — real BPI Challenge 2013 incidents log | 7,554 Volvo IT tickets, 65k events; PETRA flags traces that skip the Resolved step before Closing. |
 | `mapk_pathway/` | Phase 10 — Pathway Commons SIF import | Canonical EGF → MAPK1/3 cascade loaded as SIF; forward pass propagates activation through the full receptor → adapter → small GTPase → MAP3K → MAP2K → MAPK → transcription-factor chain. |
+| `discover_and_train_pipeline/` | Phase 12 — basic Inductive Miner + the new `net.source = "discover"` adapter keyword | Synthetic four-trace loan-approval log with sequence / parallel / exclusive-choice cuts is mined to a sound Petri net via `load_scenario`; replay invariant + training-loss convergence both pinned by the test. |
 
 **Framework shortcoming discovered and fixed during scenario
 validation:** `find_xor_groups` originally only detected single-input
@@ -1088,10 +1089,20 @@ case."
 Suggested groupings (one bullet = one new `examples/` scenario,
 roughly):
 
-- [ ] **`discover_and_train_pipeline/`** — discovery via the
-  Inductive Miner, then chain `discover_and_train` end-to-end on
-  a small real log (a slice of BPI Challenge or a synthetic
-  log with known structure). Demonstrates Phase 12.
+- [x] **`discover_and_train_pipeline/`** — discovery via the
+  Inductive Miner, then chain `discover_and_train` end-to-end
+  on a synthetic four-trace loan-approval log with sequence,
+  parallel, and exclusive-choice cuts. Demonstrates Phase 12.
+  The adapter learned a new keyword in the process —
+  `net.source = "discover"` invokes the basic Inductive Miner
+  against the `[traces]` section, so the whole pipeline stays
+  TOML-driven with no per-scenario Python boilerplate. Six
+  tests pin the four canonical assertions: the mined net is
+  sound by construction, every input trace replays on it,
+  training through the full adapter path reduces the loss, and
+  the `discover_and_train` one-call API reproduces the same
+  result. README and BUSINESS_ANALYST_GUIDE cross-link to the
+  new scenario from the discovery sections.
 
 - [ ] **`safe_refactoring/`** — extend the existing
   `cost_ranked_refactoring` story with **weak bisimulation**
