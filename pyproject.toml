@@ -69,11 +69,15 @@ docs = [
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.24",
 ]
-# ONNX runtime extras — needed only to exercise the ONNX-export
-# parity tests; the export itself uses torch's built-in
-# torch.onnx and has no extra runtime dependency. Install with:
+# ONNX export and runtime extras — install with:
 #     pip install petra-nn[onnx]
+# The `onnx` package supplies the schema / protobuf definitions
+# that torch.onnx.export imports internally from torch 2.12
+# onwards (older torch bundled it; 2.12 made the dependency
+# explicit). `onnxruntime` is what actually executes the
+# exported `.onnx` file in the parity tests.
 onnx = [
+    "onnx>=1.15",
     "onnxruntime>=1.16",
 ]
 # REST inference API extras — `pip install petra-nn[rest]`
