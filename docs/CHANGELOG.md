@@ -66,6 +66,14 @@ breaking changes to the existing surface).
   labels). The combination is the model-explanation shape
   regulators (GDPR Article 22, SR 11-7, EU AI Act) expect on
   trained decisioning models. Six tests.
+- **`examples/realtime_monitoring/`** worked-example scenario —
+  Phase 14 streaming evaluator running on a simulated
+  incident-management event stream; the anomalous case (which
+  skips *Resolved*) scores strictly higher than the normal
+  ones, with the per-transition residual pinned to
+  `t_resolved` — the actionable real-time alert signal. Both
+  the default on-close mode and the on-every-event
+  live-dashboard mode exercised. Six tests.
 - **Auto-built MkDocs Material documentation site** deployed on
   every push to `main`. URL:
   <https://pcoz.github.io/formally-verified-learnable-process-intelligence/>.

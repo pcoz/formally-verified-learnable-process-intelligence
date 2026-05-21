@@ -168,6 +168,7 @@ boilerplate).
 | `safe_refactoring/` | Phase 11 weak bisimulation + Phase 13 cross-variant comparison + Phase 13 bootstrap CIs | Two structurally-different variants of a loan-approval process (Variant A; Variant B with a silent audit-log step) are proved weakly bisimilar despite differing in shape; cross-variant comparison shows hard-agreement across the credit-score domain; bootstrap CIs on each variant's distilled rule overlap. |
 | `compliance_audit/` | Phase 11 Aalst soundness + deadlock localisation + CTL model checking | Loan-approval process with two regulatory CTL invariants (`AG (approve → AF audit_logged)`, `AG (decline_enabled → credit_checked)`); the deliberately-broken variant that bypasses the audit step fails the CTL invariant with a counterexample marking witnessing the violation. |
 | `regulator_ready_credit_approval/` | Phase 13 full diagnostic toolkit — bootstrap CIs + counterfactuals + sensitivity + prose | Coloured-token loan-approval net instrumented with all four Phase 13 outputs; bootstrap CI brackets the empirical decision band, counterfactual flips a declined application at the right amount, sensitivity confirms the model leans on the amount input, prose helpers substitute domain labels for raw place ids. |
+| `realtime_monitoring/` | Phase 14 streaming evaluator | Simplified incident-management net trained on the happy-path lifecycle; an interleaved live stream of three cases (two normal, one anomalous that skips *Resolved*) goes through `StreamingEvaluator`; anomalous case scores strictly higher and the residual pins to `t_resolved` — the actionable alert signal. |
 
 **Framework shortcoming discovered and fixed during scenario
 validation:** `find_xor_groups` originally only detected single-input
@@ -1152,10 +1153,19 @@ roughly):
   13's bootstrap CIs + counterfactuals + sensitivity + prose
   applied to a single business case.
 
-- [ ] **`realtime_monitoring/`** — a streaming evaluator
-  subscribing to a simulated event source (file-tail or
-  in-process generator); per-case scoring; alerting on a
-  threshold. Demonstrates Phase 14 streaming.
+- [x] **`realtime_monitoring/`** — simplified incident-
+  management net trained on the happy-path lifecycle, then
+  fed an interleaved live stream of three cases (two normal,
+  one anomalous that skips the *Resolved* step) through
+  `StreamingEvaluator`. Six tests pin the on-close
+  emission-per-case-at-close pattern, the headline anomaly
+  signal (anomalous case scores strictly higher than normal
+  ones), the per-transition residual pinning to
+  `t_resolved` (the skipped step — the actionable alert
+  signal), state freeing on `close_case`, and the
+  on-every-event live-dashboard mode plus the
+  `process_stream` pull-shape consumer. Demonstrates Phase
+  14 streaming evaluator.
 
 - [ ] **`onnx_deployment/`** — train, `export_onnx`, load via
   `onnxruntime`, verify parity with the torch module. Documents

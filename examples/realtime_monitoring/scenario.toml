@@ -1,0 +1,109 @@
+# Real-time monitoring — score live event streams against a
+# trained net as events arrive, not in nightly batch.
+#
+# This scenario demonstrates the Phase 14 streaming evaluator
+# on a simplified incident-management process. The net carries
+# the canonical ITIL lifecycle (opened → in_progress →
+# resolved → closed); the inline training traces fit the
+# happy-path distribution; the scenario test then pushes an
+# interleaved stream of normal and anomalous cases through
+# `StreamingEvaluator` and verifies the anomalous cases score
+# strictly higher than the normal ones — exactly the live-
+# monitoring shape a production deployment would have.
+#
+# Why this matters: the offline `anomaly_score` path is what
+# you run nightly on a stored log. The streaming evaluator is
+# what you wire into the message bus or webhook handler for
+# *live* monitoring — same module, same scoring semantics,
+# different shape of consumer. Two operating modes:
+#
+#   * **On close** (the default): events buffer per case;
+#     a single score is emitted when the case closes. Cheap
+#     enough to run on every case in production at scale.
+#
+#   * **On every event** (`score_on_every_event=True`): every
+#     incoming event produces an updated partial-trace score.
+#     Useful for live dashboards where the operator wants to
+#     see anomaly accumulating mid-trace.
+
+[scenario]
+name = "realtime_monitoring"
+description = "Phase 14 streaming evaluator running on a simulated incident-management event stream; normal cases score low, anomalous cases that skip the resolved step score high — in real time as events arrive."
+
+[net]
+source = "inline"
+
+[[net.places]]
+id = "p_opened"
+tokens = 1
+label = "incident opened"
+[[net.places]]
+id = "p_in_progress"
+label = "incident in progress"
+[[net.places]]
+id = "p_resolved"
+label = "incident resolved"
+[[net.places]]
+id = "p_closed"
+label = "incident closed"
+
+[[net.transitions]]
+id = "t_in_progress"
+label = "In Progress"
+[[net.transitions]]
+id = "t_resolved"
+label = "Resolved"
+[[net.transitions]]
+id = "t_closed"
+label = "Closed"
+
+[[net.arcs]]
+src = "p_opened"
+dst = "t_in_progress"
+[[net.arcs]]
+src = "t_in_progress"
+dst = "p_in_progress"
+[[net.arcs]]
+src = "p_in_progress"
+dst = "t_resolved"
+[[net.arcs]]
+src = "t_resolved"
+dst = "p_resolved"
+[[net.arcs]]
+src = "p_resolved"
+dst = "t_closed"
+[[net.arcs]]
+src = "t_closed"
+dst = "p_closed"
+
+[traces]
+# Training distribution: happy-path incidents only. Production
+# data would carry many more variants; for this synthetic
+# scenario the canonical lifecycle is enough to fit the
+# transition activations and surface anomalies in the test.
+source = "inline"
+
+[[traces.inline]]
+events = ["In Progress", "Resolved", "Closed"]
+[[traces.inline]]
+events = ["In Progress", "Resolved", "Closed"]
+[[traces.inline]]
+events = ["In Progress", "Resolved", "Closed"]
+[[traces.inline]]
+events = ["In Progress", "Resolved", "Closed"]
+[[traces.inline]]
+events = ["In Progress", "Resolved", "Closed"]
+[[traces.inline]]
+events = ["In Progress", "Resolved", "Closed"]
+
+[training.input_marking]
+p_opened = { constant = 1.0 }
+
+[training]
+steps = 400
+lr = 0.1
+sharpness = 1.0
+firing = "sigmoid"
+routing = "independent"
+num_steps = 0
+seed = 0

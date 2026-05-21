@@ -471,7 +471,7 @@ doesn't.
 
 ## Worked examples
 
-PETRA ships with **18 end-to-end scenarios** under
+PETRA ships with **19 end-to-end scenarios** under
 [`examples/`](examples/), each a self-contained TOML
 configuration plus a paired test driving the full pipeline.
 They span deliberately different domains — provably-safe
@@ -542,7 +542,7 @@ petri_net_nn/         # the framework
   ctl.py              # CTL temporal-logic model checking
   adapter.py          # config-driven scenario loader
 
-examples/             # 18 end-to-end scenarios — see docs/WORKED_EXAMPLES.md
+examples/             # 19 end-to-end scenarios — see docs/WORKED_EXAMPLES.md
 tests/                # framework + scenario tests
 docs/
   BUSINESS_ANALYST_GUIDE.md  # plain-English concepts primer for non-coders
@@ -569,7 +569,7 @@ package's docstrings).
 3. [`docs/ROADMAP.md`](docs/ROADMAP.md) — framing, phase status,
    what's next.
 4. [`docs/WORKED_EXAMPLES.md`](docs/WORKED_EXAMPLES.md) — the
-   eighteen scenarios under `examples/` sorted by the use case
+   nineteen scenarios under `examples/` sorted by the use case
    each represents; from here drill into any individual
    scenario's own README for the long-form story.
 5. [`docs/DEV_MANUAL.md`](docs/DEV_MANUAL.md) — adapter config and
@@ -580,7 +580,7 @@ package's docstrings).
 ## Running tests
 
 ```
-python -m pytest                          # full suite (~474 tests)
+python -m pytest                          # full suite (~480 tests)
 python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
