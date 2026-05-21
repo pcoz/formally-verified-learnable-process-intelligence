@@ -65,6 +65,85 @@ names.
 
 ---
 
+## What this unlocks (the non-obvious parts)
+
+The framework name says "Petri-Net Trained Architecture", which
+sounds narrowly technical. The practical wins are larger than
+the name suggests:
+
+1. **A business process is one kind of process — and the same
+   machinery handles all the others.** Loan approvals,
+   distributed-system protocols, manufacturing lines,
+   biological signalling pathways, IT incident flows,
+   laboratory procedures, multi-agent coordination, network
+   protocols. The [21 shipped scenarios](docs/WORKED_EXAMPLES.md)
+   deliberately span eleven domains to make the point that
+   *process* is a category that crosses industries — PETRA's
+   substrate sits at that general level, not at the BPMN level.
+
+2. **Process refactoring becomes as safe as code refactoring.**
+   Bisimulation proves two designs behave identically before
+   deployment; cost ranking picks the cheaper of the
+   equivalent ones. The same shift that made software's
+   iterate-fast culture possible in the 1990s, applied to
+   operating-model design. The [`safe_refactoring`](examples/safe_refactoring/)
+   and [`cost_ranked_refactoring`](examples/cost_ranked_refactoring/)
+   scenarios pin this end to end.
+
+3. **Regulator-grade model documentation is mechanical.**
+   Counterfactuals on declined cases, sensitivity rankings of
+   which inputs the model leans on, bootstrap CIs on the
+   learned thresholds, plain-English prose helpers — the four
+   artefacts GDPR Article 22, SR 11-7, and the EU AI Act all
+   expect on automated decisioning models — are produced by
+   single function calls. See
+   [`regulator_ready_credit_approval`](examples/regulator_ready_credit_approval/)
+   for the four together on one business case.
+
+4. **The trained model deploys anywhere.** The same `.onnx`
+   file serves from JVM workflow engines, C++ inference
+   servers, browser-based decisioning UIs (onnxruntime-web),
+   mobile devices, and accelerator stacks (TensorRT, OpenVINO,
+   DirectML). A FastAPI app over the same module exposes
+   inference, anomaly scoring, counterfactuals, and
+   sensitivity over HTTP for any non-Python consumer. Pin
+   evidence: [`onnx_deployment`](examples/onnx_deployment/)
+   verifies parity-to-1e-4 against the torch module under
+   `onnxruntime`; [`rest_serving`](examples/rest_serving/)
+   exercises every REST endpoint through `TestClient`.
+
+5. **Log-only is a first-class entry path.** If you have
+   history but no model, the basic Inductive Miner mines a
+   sound Petri net directly from the log and
+   `discover_and_train` chains *discover → verify → compile
+   → train* in a single call. For very noisy logs, ProM's
+   noise-filtering miners stay the recommended pre-step —
+   PETRA reads their PNML output unchanged.
+   See [`discover_and_train_pipeline`](examples/discover_and_train_pipeline/).
+
+6. **Every scenario is declarative.** No Python boilerplate
+   per scenario. The 21 shipped scenarios are TOML configs
+   plus a standard test harness; adding a new one is one
+   TOML file plus one paired test. The framework is also
+   honest about its limits — the
+   [Business Analyst Guide §17](docs/BUSINESS_ANALYST_GUIDE.md)
+   carries a long-form treatment of where coverability hits
+   the inhibitor-arc Turing-undecidability boundary. That
+   honesty is what makes §22's *substrate-for-a-self-organising-system*
+   claim credible rather than handwavy: knowing exactly where
+   the formal-tractability boundary sits is what lets you
+   build above it without descending into chaos. PETRA stays
+   inside its boundary and tells you precisely where the
+   boundary is, which is the precondition for anything else
+   sitting safely on top.
+
+The rest of this README is the formal story behind those six —
+guarantees, comparisons with classical Petri-net tools, the
+toolchain walkthrough on a bank-loan unification case, and
+the economic framing of where the value sits.
+
+---
+
 ## Three layers of guarantee
 
 PETRA's positioning sits at the intersection of formal methods

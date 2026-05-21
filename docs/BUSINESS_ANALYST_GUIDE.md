@@ -1142,6 +1142,14 @@ old. Navigating around it is part of working with formal
 models. PETRA's job is to be honest about where the boundary
 lies, not to pretend the boundary does not exist.
 
+This honesty matters beyond compliance verification. §22 below
+discusses what it would take to build a self-organising system
+on top of PETRA's substrate without descending into chaos. The
+answer turns on knowing exactly where the formal-tractability
+boundary sits — which is what this subsection has just sketched.
+Build above the boundary; stay inside it for everything you
+need formal guarantees on.
+
 ### Why this matters
 
 Currently, most BPMN tools catch only *syntactic* errors — *"this

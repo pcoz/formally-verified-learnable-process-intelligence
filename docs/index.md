@@ -26,6 +26,48 @@ pip install petra-nn
 
 Requires Python 3.11+ and brings `torch` in as a dependency.
 
+## What this unlocks (the non-obvious parts)
+
+The framework name says "Petri-Net Trained Architecture", which
+sounds narrowly technical. The practical wins are larger:
+
+- **A business process is one kind of process — and the same
+  machinery handles all the others.** The 21 shipped scenarios
+  span loan approvals, distributed-system protocols,
+  manufacturing lines, biological signalling pathways, IT
+  incident flows, laboratory procedures, multi-agent
+  coordination, and network protocols. *Process* is a category
+  that crosses industries; PETRA sits at that general level.
+- **Process refactoring becomes as safe as code refactoring.**
+  Bisimulation proves two designs behave identically *before*
+  deployment; cost ranking picks the cheaper of the equivalent
+  ones. The same shift that made software's iterate-fast
+  culture possible, applied to operating-model design.
+- **Regulator-grade model documentation is mechanical.**
+  Counterfactuals, sensitivity rankings, bootstrap CIs,
+  plain-English prose helpers — what GDPR Article 22, SR 11-7,
+  and the EU AI Act all expect — are single function calls.
+- **The trained model deploys anywhere.** Same `.onnx` file
+  serves from JVM workflow engines, C++ inference servers,
+  browser-based decisioning UIs, mobile, and accelerator
+  stacks; a FastAPI app exposes the same surface over HTTP for
+  non-Python consumers.
+- **Log-only is a first-class entry path.** Native discovery
+  via the basic Inductive Miner mines a sound Petri net from
+  the log alone; `discover_and_train` chains *discover →
+  verify → compile → train* in a single call.
+- **Every scenario is declarative.** No Python boilerplate per
+  scenario. The framework is honest about its limits — the
+  Business Analyst Guide §17 carries the long-form treatment
+  of where coverability hits the inhibitor-arc undecidability
+  boundary. That honesty is what makes §22's
+  *substrate-for-a-self-organising-system* claim credible
+  rather than handwavy: knowing exactly where the
+  formal-tractability boundary sits is what lets you build
+  above it without descending into chaos. PETRA stays inside
+  its boundary and tells you precisely where the boundary is —
+  the precondition for anything else sitting safely on top.
+
 ## What to read first
 
 The same reading order works for newcomers and reviewers:
