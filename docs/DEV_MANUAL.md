@@ -55,7 +55,7 @@ description = "..."      # optional one-line description
 # ---------------------------------------------------------------------------
 # [net] — exactly one source per scenario
 [net]
-source = "inline"        # one of: "inline" | "bpmn_file" | "pnml_file" | "sif_file"
+source = "inline"        # one of: "inline" | "bpmn_file" | "pnml_file" | "sif_file" | "discover"
 
 # ---- "inline" form: declare the net structurally in TOML ----
 [[net.places]]
@@ -90,6 +90,11 @@ transition = "t_guarded"
 
 # ---- OR: "sif_file" form — Pathway Commons SIF ----
 # path = "pathway.sif"
+
+# ---- OR: "discover" form — mine the structure from the [traces] section
+#      below via the basic Inductive Miner. No structural payload here. ----
+# (just `source = "discover"` is enough; the adapter loads traces first
+#  and feeds them to `discover_inductive`.)
 
 # ---------------------------------------------------------------------------
 # [traces] — exactly one source per scenario; section is optional if you
@@ -481,7 +486,53 @@ catch modeller bugs, after a refactoring to confirm the new
 variant is still sound, or in CI to enforce soundness on every
 scenario.
 
-### 3.9 `ctl.py` — Computation Tree Logic model checking
+### 3.9 `coverability.py` — Karp-Miller coverability analysis
+
+```python
+from petri_net_nn import (
+    CoverabilityReport,
+    OMEGA,
+    coverability_graph,
+    is_bounded,
+)
+```
+
+The soundness checker above assumes the net is *bounded* — its
+reachability graph terminates. Coverability answers the prior
+question: *is the net bounded at all, and if not, which places
+are the ones blowing up?*
+
+`coverability_graph(net)` runs the classical Karp-Miller
+construction and returns a `CoverabilityReport`:
+
+| Field | What it carries |
+|---|---|
+| `is_bounded` | `True` iff no place in any coverability node carries ω |
+| `unbounded_places` | sorted list of place names with ω somewhere in the tree |
+| `place_bounds` | per-place upper bound — integer for bounded places, `OMEGA` for unbounded ones |
+| `omega_markings` | sorted list of nodes carrying ω; each one witnesses unboundedness |
+
+`report.summary()` is the one-liner (`"bounded"` or
+`"unbounded at N place(s): p1, p2, ..."`).
+`is_bounded(net)` is the convenience boolean — equivalent to
+`coverability_graph(net).is_bounded`, useful as a precondition
+guard before running the other verification checks that assume
+finite reachable state space.
+
+The analyser is **exact** on nets without inhibitor arcs and
+**conservative** on nets that use them (may overreport
+unboundedness). This is a mathematical limit, not a tool
+limitation: inhibitor-arc Petri nets are Turing-complete
+(Minsky 1967), so exact coverability would solve the halting
+problem (Turing 1936). PETRA opts for conservative reporting
+rather than refusing to answer; see
+`BUSINESS_ANALYST_GUIDE.md` §17 for the long-form treatment,
+three industry examples of where unboundedness shows up
+(banking reconciliation queues, NHS specialty waiting lists,
+manufacturing WIP at bottlenecks), and the three practical
+workarounds.
+
+### 3.10 `ctl.py` — Computation Tree Logic model checking
 
 ```python
 from petri_net_nn import (
@@ -525,7 +576,7 @@ terminating workflow nets (without the self-loops, EG would be
 vacuously false everywhere on a terminating net, and AX would be
 vacuously true at the sink).
 
-### 3.10 `bisimulation.py` — formal equivalence checking
+### 3.11 `bisimulation.py` — formal equivalence checking
 
 ```python
 from petri_net_nn import (
@@ -553,7 +604,7 @@ that add or remove internal-only structural artefacts no longer
 break the equivalence claim, which is the case the cost-ranked
 refactoring story relies on.
 
-### 3.11 `subnets.py` — hand-built reference subnets
+### 3.12 `subnets.py` — hand-built reference subnets
 
 `SequentialSubnet`, `XORSubnet`, `AndSplitSubnet`, `AndJoinSubnet`,
 `SagaSubnet` — five `nn.Module` subclasses corresponding to the
@@ -561,7 +612,7 @@ canonical workflow-net building blocks. The general
 `PetriNetModule` subsumes them; the hand-built versions stay as
 readable references and regression coverage.
 
-### 3.12 `streaming.py` — real-time anomaly scoring
+### 3.13 `streaming.py` — real-time anomaly scoring
 
 ```python
 from petri_net_nn import (
@@ -608,7 +659,7 @@ most real event sources have.
 Single-threaded by design. A multi-threaded source should
 serialise calls through a single consumer goroutine / queue.
 
-### 3.13 `discovery.py` — Inductive Miner for log → Petri-net discovery
+### 3.14 `discovery.py` — Inductive Miner for log → Petri-net discovery
 
 ```python
 from petri_net_nn import discover_inductive, discover_and_train
@@ -651,7 +702,7 @@ every input trace replays on the mined net modulo τ collapse.
   step that follows reads attributes via the standard
   `train_on_traces` path.
 
-### 3.14 `cli.py` — command-line entry points for engine integration
+### 3.15 `cli.py` — command-line entry points for engine integration
 
 `pip install petra-nn` drops three commands on the user's PATH
 (plus a `petra` umbrella that exposes them as subcommands):
@@ -706,7 +757,7 @@ A trained-model bundle is two files written side-by-side by
   markings without needing the original `scenario.toml` at
   score time.
 
-### 3.15 `rest.py` — HTTP wrapper around a trained module
+### 3.16 `rest.py` — HTTP wrapper around a trained module
 
 ```python
 from petri_net_nn import load_scenario, build_app
@@ -744,7 +795,7 @@ fastapi / pydantic imports are guarded at module load and
 deps. Single-model-per-app by design; auth / CORS / rate
 limiting are left to the caller's app layer.
 
-### 3.16 `onnx_export.py` — export to the ONNX interchange format
+### 3.17 `onnx_export.py` — export to the ONNX interchange format
 
 ```python
 from petri_net_nn import export_onnx
@@ -817,6 +868,7 @@ Current scenarios:
 | `incident_management/` | Phase 10 — trains on the **real BPI Challenge 2013** incidents log (7,554 Volvo IT tickets), the actual public dataset. |
 | `mapk_pathway/` | Phase 10 — loads a Pathway Commons-style SIF of the MAPK1/3 (ERK1/2) signalling cascade and runs a forward pass through the EGF → MAPK → transcription-factor flow. |
 | `cost_ranked_refactoring/` | Provably-safe refactoring via Phase 2 + `expected_cost`. |
+| `discover_and_train_pipeline/` | Phase 12 native log-to-net discovery via the basic Inductive Miner plus the adapter's `net.source = "discover"` keyword — full `discover → verify → compile → train` pipeline from a TOML config with no Petri net supplied. |
 
 ---
 
@@ -914,5 +966,5 @@ python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
 
-Current test count: 435 passing across the framework and the
+Current test count: 455 passing across the framework and the
 end-to-end scenarios.

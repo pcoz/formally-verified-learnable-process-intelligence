@@ -76,6 +76,7 @@ nav:
       - Anomaly generators + baseline: api/anomalies.md
       - Bisimulation (strong + weak): api/bisimulation.md
       - Soundness + deadlock localisation: api/soundness.md
+      - Coverability (Karp-Miller): api/coverability.md
       - CTL temporal-logic checker: api/ctl.md
       - Interpretability (rules, CIs, counterfactuals, sensitivity): api/interpretability.md
       - Reference subnets: api/subnets.md

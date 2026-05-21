@@ -64,5 +64,6 @@ case.
 | **Anomaly scores** | Residuals pinned to specific named elements, not opaque whole-trace numbers. |
 | **Equivalence proofs** | Strong and weak bisimulation between two variants, *before* either is deployed. |
 | **Soundness verification** | Aalst's option-to-complete + proper-completion + no-dead-transitions check. |
+| **Coverability analysis** | Karp-Miller — identifies which places (if any) can hold arbitrarily many tokens. *"Is this place a queue that's about to blow up?"* |
 | **Temporal-logic checking** | CTL — *"every approved loan eventually fires the audit-log step"*. |
 | **Cost rankings** | Over behaviour-preserving refactorings, fitted to your observed workload. |

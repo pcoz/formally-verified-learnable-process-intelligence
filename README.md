@@ -16,9 +16,10 @@
 **PETRA** (*Petri-Net Trained Architecture*) learns how a
 **discrete-event system routes through its structure** from its
 **execution logs** — fitting per-transition firing propensities
-conditional on the input marking, over a fixed Petri-net
-substrate — and turns the learned dynamics into four things you
-can act on:
+conditional on the input marking, over a Petri-net substrate
+that you either supply or have PETRA discover from the same
+logs — and turns the learned dynamics into four things you can
+act on:
 
 - **Readable decision rules** — distilled from the trained weights
   in domain vocabulary, e.g. *"if amount > £1,000 → credit-review."*
@@ -40,12 +41,13 @@ The same primitives cover distributed-system protocols,
 manufacturing lines, laboratory recipes, multi-agent coordination,
 IT incident management, and biology signalling pathways.
 
-You give PETRA a **Petri net** describing the system's
-structure plus an execution log — or, if you don't have a
-Petri net yet, just the log; PETRA can
-[discover one for you](#dont-have-a-petri-net-yet-native-discovery-from-logs)
-from the trace data. A Petri net is the standard formal
-model for this class of system:
+PETRA's two inputs are a **Petri net** describing the system's
+structure and an **execution log** of how it actually ran. You
+can supply both, or supply only the log and have PETRA
+[discover the Petri net from it](#dont-have-a-petri-net-yet-native-discovery-from-logs)
+via the basic Inductive Miner — a single log can drive the
+entire pipeline. A Petri net is the standard formal model for
+this class of system:
 
 - ***places*** hold tokens (work items, requests, messages);
 - ***transitions*** move tokens between places (a step firing);
@@ -251,7 +253,7 @@ question over the same Petri-net structure:
 | **CPN Tools** (Aarhus) | Reference implementation of Coloured Petri Nets — full ML-style colour-set typing, state-space verification, mature GUI simulator. | CPN Tools verifies a *given* CPN; PETRA *trains* a model of how the net's transitions are actually used from execution traces, including learning guard thresholds from per-token values rather than taking them as given. CPN Tools' colour sets are far richer than PETRA's CPN-lite scalar token values. |
 | **GreatSPN** (Turin) | Generalised Stochastic Petri Nets — exponentially-distributed firing times, analytical CTMC throughput, performance bounds. | GreatSPN gives closed-form stationary throughput under a stipulated rate model; PETRA's stochastic rates are compiler-level multipliers used during training. Different question. |
 | **TINA** (LAAS-CNRS) | Time Petri nets with intervals, state-space exploration, integrated CTL/LTL model checking via NuSMV. | TINA proves temporal-logic invariants about the *specified* behaviour; PETRA fits transition-firing propensities to observed traces and flags deviations from those learned propensities. Phase 11 wires CTL in directly (`check_ctl`). |
-| **ProM** (Eindhoven) | Process mining — Alpha / Inductive / Heuristics miners discover a Petri net from execution logs; conformance checking; large plugin ecosystem. | ProM does *structure discovery* from logs (Phase 12 of PETRA's roadmap, not yet built). The two are a natural pair: ProM discovers, PETRA trains dynamics on the result. |
+| **ProM** (Eindhoven) | Process mining — Alpha / Inductive / Heuristics miners discover a Petri net from execution logs; conformance checking; large plugin ecosystem. | PETRA now does *structure discovery* natively too, via the basic Inductive Miner (`discover_inductive`). For very noisy logs ProM's noise-tolerant variants (IMf / IMi) remain the recommended pre-filter — PETRA reads the PNML they emit directly. The tools stay a natural pair: clean log → PETRA alone; noisy log → ProM then PETRA. |
 
 **The thing PETRA does that none of them do:** combine a
 *learned-from-traces* dynamics model with a *structurally verified*
@@ -469,7 +471,7 @@ doesn't.
 
 ## Worked examples
 
-PETRA ships with **14 end-to-end scenarios** under `examples/`.
+PETRA ships with **15 end-to-end scenarios** under `examples/`.
 Each is a self-contained TOML configuration plus a paired test
 that drives the full pipeline — *load the net, load the traces,
 compile, train, extract rules, score anomalies.* They span
@@ -546,10 +548,11 @@ petri_net_nn/         # the framework
   interpretability.py # distil learned weights into rules
   bisimulation.py     # strong + weak bisimulation equivalence checking
   soundness.py        # Aalst soundness + deadlock localisation
+  coverability.py     # Karp-Miller coverability for unbounded nets
   ctl.py              # CTL temporal-logic model checking
   adapter.py          # config-driven scenario loader
 
-examples/             # 14 end-to-end scenarios — see "Worked examples" above
+examples/             # 15 end-to-end scenarios — see "Worked examples" above
 tests/                # framework + scenario tests
 docs/
   BUSINESS_ANALYST_GUIDE.md  # plain-English concepts primer for non-coders
@@ -585,7 +588,7 @@ package's docstrings).
 ## Running tests
 
 ```
-python -m pytest                          # full suite (~435 tests)
+python -m pytest                          # full suite (~455 tests)
 python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```

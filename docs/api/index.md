@@ -18,6 +18,7 @@ this site and the changes appear here automatically.
 | [Anomalies](anomalies.md) | Corruption generators (`drop_event`, `insert_event`, `swap_event_labels`, `shuffle_events`) plus the non-structural `FrequencyBaseline`. |
 | [Bisimulation](bisimulation.md) | Strong (`are_bisimilar`) and weak (`are_weakly_bisimilar`) bisimulation, plus the reachability-graph foundation they share. |
 | [Soundness](soundness.md) | Aalst soundness verification (`check_soundness`) and deadlock localisation (`find_deadlocks`). |
+| [Coverability](coverability.md) | Karp-Miller coverability analysis (`coverability_graph`, `is_bounded`) — identifies which places (if any) can hold arbitrarily many tokens. |
 | [CTL](ctl.md) | Computation Tree Logic model checking — six-primitive AST plus the derived `AG` / `AF` / `EF` / `AX` / `AU` constructors. |
 | [Interpretability](interpretability.md) | Rule extraction, bootstrap CIs, counterfactuals, sensitivity analysis, cross-variant comparison reports, prose explainers. |
 | [Subnets](subnets.md) | Hand-built reference subnets — the five canonical workflow-net building blocks. |

@@ -6,6 +6,64 @@ follows [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Public-API-additive work since v0.1.0. Bound for the next release as
+**v0.2.0** (minor bump — new public functions exported, no
+breaking changes to the existing surface).
+
+### Added
+
+- **Phase 11 coverability analysis.** `petri_net_nn.coverability`
+  exposes `coverability_graph(net)`, the convenience
+  `is_bounded(net)`, the `CoverabilityReport` dataclass, and the
+  `OMEGA` sentinel. Karp-Miller construction; exact on
+  inhibitor-free nets; conservative (may overreport
+  unboundedness) on nets with inhibitor arcs, per the Minsky /
+  Turing undecidability of the general case. Long-form
+  treatment in BUSINESS_ANALYST_GUIDE §17 with three industry
+  examples (payment-reconciliation queues, NHS specialty
+  waiting lists, manufacturing WIP at bottlenecks).
+- **Phase 12 basic Inductive Miner.** `discover_inductive(traces)`
+  mines a sound Petri net from a trace set; `discover_and_train`
+  chains the whole `discover → verify → compile → train`
+  pipeline in one call. Process-tree primitives `Activity`,
+  `Tau`, `Sequence`, `ExclusiveChoice`, `Parallel`, `Loop`,
+  `ProcessTree` are also exported.
+- **Phase 14 productionisation toolkit.** ONNX export
+  (`export_onnx`), streaming evaluator (`StreamingEvent`,
+  `StreamingEvaluator`, `StreamingEvaluation`), FastAPI REST
+  wrapper (`build_app`), and the `petra-train` / `petra-score`
+  / `petra-serve` command-line entry points. Documented
+  integration patterns for Camunda / Activiti / Flowable in
+  `docs/INTEGRATION_PATTERNS.md`.
+- **Adapter:** `net.source = "discover"` keyword invokes the
+  Inductive Miner against the `[traces]` section, so the
+  log-only pipeline stays TOML-driven with no per-scenario
+  Python boilerplate.
+- **`examples/discover_and_train_pipeline/`** worked-example
+  scenario — a four-trace loan-approval-style log mined to a
+  sound Petri net and trained end to end, with six pinning
+  tests.
+- **Auto-built MkDocs Material documentation site** deployed on
+  every push to `main`. URL:
+  <https://pcoz.github.io/formally-verified-learnable-process-intelligence/>.
+
+### Changed
+
+- **Honest framing in README and BUSINESS_ANALYST_GUIDE** —
+  native log-to-net discovery is now explicitly acknowledged
+  (the BA guide had previously said PETRA was deliberately
+  *not* a discovery tool; Phase 12 made that wrong). The
+  framing calibrates which logs PETRA's basic IM handles well
+  vs. when ProM's noise filters belong as a pre-step.
+
+### Fixed
+
+- **CI dependency for torch 2.12.** From torch 2.12.0
+  onwards, `torch.onnx.export` requires the `onnx` schema
+  package at import time. Added `onnx>=1.15` to the `[onnx]`
+  optional extra; without this CI began failing on every push
+  on 2026-05-20.
+
 ## [0.1.0] — 2026-05-20
 
 Initial PyPI release. Feature-complete on the original architecture

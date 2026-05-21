@@ -68,6 +68,52 @@ one unit of work currently in this state."* When a transition
 produces one token in each of its output places. *Firing* is the
 Petri-net word for *"this step just happened."*
 
+### A "business process" is one kind of process
+
+A point worth pausing on, because it shapes how to read everything
+that follows. The phrase *business process* is used throughout
+this guide because business processes are what most readers of
+this document are paid to think about — but a business process
+is not a fundamental category. It is one *kind* of process,
+distinguished from other kinds by the domain it describes (loan
+approvals, claims handling, hiring funnels) rather than by
+anything formal.
+
+A manufacturing line, a network protocol handshake, a biological
+signalling pathway, an IT incident lifecycle, a multi-agent
+coordination protocol, a laboratory procedure — all of these are
+*processes* in exactly the same formal sense as a business
+process: a system whose state changes at identifiable moments,
+under explicit rules, with work flowing between states. The
+Petri net is the formal model of that general object. The word
+*business* is a domain label sitting on top of it, not a
+separate kind of thing.
+
+This matters because PETRA's substrate — the verification
+machinery, the bisimulation checker, the cost-ranked refactoring,
+the soundness and coverability analyses, everything in this
+guide — applies to *any* process in the formal sense, not just
+business processes. The fifteen end-to-end scenarios shipped in
+[`examples/`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples)
+deliberately span different domains (loan approval, distributed
+consensus, manufacturing cells, biology signalling, IT incidents,
+scientific workflows, network protocols, multi-agent coordination)
+to make exactly this point. The analytical tooling that proves
+two loan-approval variants equivalent will prove two manufacturing
+layouts equivalent or two protocol handshakes equivalent,
+unchanged. A finding about how your process behaves under PETRA
+is, ultimately, a finding about a formal object — not about a
+business-uniquely-flavoured artefact that would need its own
+bespoke toolkit.
+
+The practical upshot for a business analyst is that the same
+investment in understanding PETRA pays off across every
+process-shaped system your organisation runs: the BPM engine
+output, the incident-management workflow, the supply-chain
+sequence, the audit pipeline, the data-engineering DAG. They
+are all processes in the same formal sense, and they all submit
+to the same analysis.
+
 ### A worked example
 
 A trivial loan-approval process — submit, review, decide:
