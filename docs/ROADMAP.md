@@ -166,6 +166,7 @@ boilerplate).
 | `mapk_pathway/` | Phase 10 — Pathway Commons SIF import | Canonical EGF → MAPK1/3 cascade loaded as SIF; forward pass propagates activation through the full receptor → adapter → small GTPase → MAP3K → MAP2K → MAPK → transcription-factor chain. |
 | `discover_and_train_pipeline/` | Phase 12 — basic Inductive Miner + the new `net.source = "discover"` adapter keyword | Synthetic four-trace loan-approval log with sequence / parallel / exclusive-choice cuts is mined to a sound Petri net via `load_scenario`; replay invariant + training-loss convergence both pinned by the test. |
 | `safe_refactoring/` | Phase 11 weak bisimulation + Phase 13 cross-variant comparison + Phase 13 bootstrap CIs | Two structurally-different variants of a loan-approval process (Variant A; Variant B with a silent audit-log step) are proved weakly bisimilar despite differing in shape; cross-variant comparison shows hard-agreement across the credit-score domain; bootstrap CIs on each variant's distilled rule overlap. |
+| `compliance_audit/` | Phase 11 Aalst soundness + deadlock localisation + CTL model checking | Loan-approval process with two regulatory CTL invariants (`AG (approve → AF audit_logged)`, `AG (decline_enabled → credit_checked)`); the deliberately-broken variant that bypasses the audit step fails the CTL invariant with a counterexample marking witnessing the violation. |
 
 **Framework shortcoming discovered and fixed during scenario
 validation:** `find_xor_groups` originally only detected single-input
@@ -1119,12 +1120,20 @@ roughly):
   bootstrap CIs. Six tests in
   `tests/scenarios/test_safe_refactoring.py`.
 
-- [ ] **`compliance_audit/`** — a process with regulatory
-  invariants stated as **CTL** properties ("every approved
-  loan eventually fires the audit-log step"); show
-  `check_soundness` catching structural issues, `find_deadlocks`
-  pinning blocked states, and `check_ctl` verifying the
-  invariants. Demonstrates Phase 11 soundness + CTL.
+- [x] **`compliance_audit/`** — loan-approval process with an
+  explicit audit-log step on the approval path, plus two
+  regulatory invariants stated as CTL formulae:
+  `AG (decided_approve → AF audit_logged)` ("every approved
+  loan eventually fires the audit log") and
+  `AG (enabled(t_decline) → has_token(p_credit_checked))`
+  ("decline cannot fire before credit-check"). The scenario
+  test pins `check_soundness`, `find_deadlocks`, both CTL
+  invariants on the compliant net, and the
+  CTL-fails-with-counterexample path on a deliberately-broken
+  variant that bypasses the audit-log step — exactly the case
+  auditors care about. Demonstrates Phase 11 soundness +
+  deadlock localisation + CTL. Seven tests in
+  `tests/scenarios/test_compliance_audit.py`.
 
 - [ ] **`regulator_ready_credit_approval/`** — extend
   `credit_approval_coloured` to demonstrate the **bootstrap CI**

@@ -1,0 +1,128 @@
+# Compliance audit — regulatory invariants as CTL properties.
+#
+# A loan-approval process modelled with an explicit audit-log
+# step on the approval path. The compliance regime requires:
+#
+#   1. Every approved loan must eventually fire the audit-log
+#      step before the case closes — "AG (decided_approve →
+#      AF audit_logged)" in CTL.
+#   2. The decline transition can only become enabled after
+#      the credit-check step has fired — "AG (decline_enabled
+#      → credit_checked)" in CTL. This rules out short-cutting
+#      the decision by declining before evaluating creditworthiness.
+#   3. The net must be sound — every reachable state can reach
+#      the final closed marking, no lingering tokens at
+#      completion, no dead transitions.
+#   4. No deadlocks — every non-final state has at least one
+#      enabled successor.
+#
+# These are the structural verifications a compliance officer
+# would want answered *before* the process goes into production.
+# They run on the Petri net alone — no training, no log data —
+# so they're cheap to bake into CI and re-run on every
+# refactoring.
+#
+# The scenario test also constructs a *deliberately broken*
+# variant where the audit-log step can be skipped — there's a
+# direct close-without-audit transition out of the
+# decided_approve place. CTL correctly fails on that variant
+# and the report carries a counterexample marking witnessing
+# the violation. This is the half-failure case auditors care
+# about: the model's invariants told us before deployment that
+# the redesign would let approved loans close without the
+# audit step.
+
+[scenario]
+name = "compliance_audit"
+description = "Regulatory CTL invariants on a loan-approval process; demonstrates Aalst soundness, deadlock localisation, and CTL model checking for compliance verification."
+
+[net]
+source = "inline"
+
+[[net.places]]
+id = "p_submitted"
+tokens = 1
+label = "application submitted"
+[[net.places]]
+id = "p_credit_checked"
+label = "credit checked"
+[[net.places]]
+id = "p_decided_approve"
+label = "approved"
+[[net.places]]
+id = "p_decided_decline"
+label = "declined"
+[[net.places]]
+id = "p_audit_logged"
+label = "audit log written"
+[[net.places]]
+id = "p_closed"
+label = "case closed"
+
+[[net.transitions]]
+id = "t_credit_check"
+label = "credit check"
+[[net.transitions]]
+id = "t_approve"
+label = "approve"
+[[net.transitions]]
+id = "t_decline"
+label = "decline"
+[[net.transitions]]
+id = "t_audit_log"
+label = "write audit log"
+[[net.transitions]]
+id = "t_close_approved"
+label = "close approved"
+[[net.transitions]]
+id = "t_close_declined"
+label = "close declined"
+
+# Credit check is the gating step — both decision branches sit
+# downstream of it.
+[[net.arcs]]
+src = "p_submitted"
+dst = "t_credit_check"
+[[net.arcs]]
+src = "t_credit_check"
+dst = "p_credit_checked"
+
+[[net.arcs]]
+src = "p_credit_checked"
+dst = "t_approve"
+[[net.arcs]]
+src = "t_approve"
+dst = "p_decided_approve"
+
+[[net.arcs]]
+src = "p_credit_checked"
+dst = "t_decline"
+[[net.arcs]]
+src = "t_decline"
+dst = "p_decided_decline"
+
+# Approval path passes through the mandatory audit-log step
+# before closing — this is the structural enforcement of the
+# compliance requirement.
+[[net.arcs]]
+src = "p_decided_approve"
+dst = "t_audit_log"
+[[net.arcs]]
+src = "t_audit_log"
+dst = "p_audit_logged"
+
+[[net.arcs]]
+src = "p_audit_logged"
+dst = "t_close_approved"
+[[net.arcs]]
+src = "t_close_approved"
+dst = "p_closed"
+
+# Decline path closes directly — no audit-log required on
+# declined applications under this compliance regime.
+[[net.arcs]]
+src = "p_decided_decline"
+dst = "t_close_declined"
+[[net.arcs]]
+src = "t_close_declined"
+dst = "p_closed"

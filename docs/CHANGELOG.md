@@ -50,6 +50,14 @@ breaking changes to the existing surface).
   comparison and bootstrap CIs both pinned by six tests.
   Demonstrates Phase 11 weak bisim + Phase 13 cross-variant
   comparison + bootstrap CIs in a single end-to-end story.
+- **`examples/compliance_audit/`** worked-example scenario —
+  loan-approval net with two regulatory CTL invariants
+  (audit-after-approve, decline-after-credit-check); the
+  deliberately-broken variant that bypasses the audit step
+  fails the CTL invariant with a counterexample marking
+  witnessing the violation. Demonstrates Phase 11 Aalst
+  soundness + deadlock localisation + CTL model checking in a
+  single end-to-end compliance story. Seven tests.
 - **Auto-built MkDocs Material documentation site** deployed on
   every push to `main`. URL:
   <https://pcoz.github.io/formally-verified-learnable-process-intelligence/>.
