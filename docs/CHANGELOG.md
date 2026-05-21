@@ -74,6 +74,16 @@ breaking changes to the existing surface).
   `t_resolved` — the actionable real-time alert signal. Both
   the default on-close mode and the on-every-event
   live-dashboard mode exercised. Six tests.
+- **`examples/onnx_deployment/`** worked-example scenario —
+  Phase 14 ONNX export end to end. Small loan-approval
+  XOR-routing model trained from inline traces, exported to
+  `.onnx`, loaded via `onnxruntime`, parity-checked against
+  the torch forward pass within 1e-4 across a sweep of
+  inputs. The dynamic-batch axis is exercised
+  (`batch_size=1` export accepts a batch of 50 at inference).
+  The deployment bridge to JVM workflow engines, C++
+  inference servers, browser-based decisioning UIs, mobile,
+  and accelerator stacks. Four tests.
 - **Auto-built MkDocs Material documentation site** deployed on
   every push to `main`. URL:
   <https://pcoz.github.io/formally-verified-learnable-process-intelligence/>.

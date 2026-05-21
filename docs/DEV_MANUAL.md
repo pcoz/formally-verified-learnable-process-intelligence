@@ -873,6 +873,7 @@ Current scenarios:
 | `compliance_audit/` | Phase 11 Aalst soundness + deadlock localisation + CTL — regulatory invariants on a loan-approval process verified mechanically; deliberately-broken variant that bypasses the audit step fails the CTL invariant with a counterexample marking. |
 | `regulator_ready_credit_approval/` | Phase 13 full diagnostic surface — bootstrap CIs, counterfactuals, sensitivity, prose — applied to a coloured-token loan-approval net to produce the model-explanation artefacts a modern decisioning regulator expects (GDPR Article 22, SR 11-7, EU AI Act). |
 | `realtime_monitoring/` | Phase 14 streaming evaluator running on a simulated incident-management event stream; anomalous cases scored live as events arrive, with the actionable per-transition residual pinned to the skipped step. |
+| `onnx_deployment/` | Phase 14 ONNX export — train a loan-approval XOR-routing model from inline traces, export to `.onnx`, parity-check against the torch forward pass under `onnxruntime`. The deployment bridge to JVM / C++ / browser / mobile / accelerator stacks. |
 
 ---
 
@@ -970,5 +971,5 @@ python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
 
-Current test count: 480 passing across the framework and the
+Current test count: 484 passing across the framework and the
 end-to-end scenarios.

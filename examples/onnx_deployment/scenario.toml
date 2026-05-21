@@ -1,0 +1,100 @@
+# ONNX deployment — export a trained PETRA model for inference
+# in any ONNX runtime (Python, C++, Java, .NET, browser, mobile,
+# accelerator stacks).
+#
+# This scenario trains a small loan-approval XOR-routing model
+# from inline traces, exports the trained module to ONNX, and
+# the paired test verifies parity between the original torch
+# forward pass and inference under `onnxruntime`. The ONNX file
+# the scenario produces is functionally identical to the torch
+# module; downstream consumers can serve it from anywhere that
+# speaks ONNX — including JVM stacks via ONNX Runtime for Java,
+# C++ inference servers, and browser-based deployments via
+# onnxruntime-web.
+#
+# The net is deliberately the simplest viable shape — one input
+# place, two routing transitions — so the parity assertion has
+# no auxiliary moving parts and the load-bearing claim ("the
+# exported model gives the same answers as the torch module")
+# stands cleanly. The four training traces fit the canonical
+# XOR-routing decision (high risk_score → approve, low → decline);
+# the trained crossover lands near 0.5 by construction.
+
+[scenario]
+name = "onnx_deployment"
+description = "Phase 14 ONNX export: train a small XOR-routing loan-approval model, export to ONNX, verify parity with the torch module under onnxruntime."
+
+[net]
+source = "inline"
+
+[[net.places]]
+id = "p_application"
+tokens = 1
+label = "application under review"
+[[net.places]]
+id = "p_approved"
+label = "approved"
+[[net.places]]
+id = "p_declined"
+label = "declined"
+
+[[net.transitions]]
+id = "t_approve"
+label = "approve loan"
+[[net.transitions]]
+id = "t_decline"
+label = "decline loan"
+
+[[net.arcs]]
+src = "p_application"
+dst = "t_approve"
+[[net.arcs]]
+src = "t_approve"
+dst = "p_approved"
+
+[[net.arcs]]
+src = "p_application"
+dst = "t_decline"
+[[net.arcs]]
+src = "t_decline"
+dst = "p_declined"
+
+[traces]
+source = "inline"
+
+[[traces.inline]]
+attributes = { risk_score = "0.9" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { risk_score = "0.8" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { risk_score = "0.75" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { risk_score = "0.95" }
+events = ["approve loan"]
+[[traces.inline]]
+attributes = { risk_score = "0.1" }
+events = ["decline loan"]
+[[traces.inline]]
+attributes = { risk_score = "0.2" }
+events = ["decline loan"]
+[[traces.inline]]
+attributes = { risk_score = "0.25" }
+events = ["decline loan"]
+[[traces.inline]]
+attributes = { risk_score = "0.05" }
+events = ["decline loan"]
+
+[training.input_marking]
+p_application = { attribute = "risk_score" }
+
+[training]
+steps = 600
+lr = 0.1
+sharpness = 4.0
+firing = "sigmoid"
+routing = "independent"
+num_steps = 0
+seed = 0

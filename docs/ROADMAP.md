@@ -169,6 +169,7 @@ boilerplate).
 | `compliance_audit/` | Phase 11 Aalst soundness + deadlock localisation + CTL model checking | Loan-approval process with two regulatory CTL invariants (`AG (approve → AF audit_logged)`, `AG (decline_enabled → credit_checked)`); the deliberately-broken variant that bypasses the audit step fails the CTL invariant with a counterexample marking witnessing the violation. |
 | `regulator_ready_credit_approval/` | Phase 13 full diagnostic toolkit — bootstrap CIs + counterfactuals + sensitivity + prose | Coloured-token loan-approval net instrumented with all four Phase 13 outputs; bootstrap CI brackets the empirical decision band, counterfactual flips a declined application at the right amount, sensitivity confirms the model leans on the amount input, prose helpers substitute domain labels for raw place ids. |
 | `realtime_monitoring/` | Phase 14 streaming evaluator | Simplified incident-management net trained on the happy-path lifecycle; an interleaved live stream of three cases (two normal, one anomalous that skips *Resolved*) goes through `StreamingEvaluator`; anomalous case scores strictly higher and the residual pins to `t_resolved` — the actionable alert signal. |
+| `onnx_deployment/` | Phase 14 ONNX export | Loan-approval XOR-routing net trained from inline traces, exported to `.onnx`, parity-checked against the torch forward pass under `onnxruntime` — 1e-4 numerical agreement, dynamic batch axis, routing decisions identical across runtimes. |
 
 **Framework shortcoming discovered and fixed during scenario
 validation:** `find_xor_groups` originally only detected single-input
@@ -1167,11 +1168,18 @@ roughly):
   `process_stream` pull-shape consumer. Demonstrates Phase
   14 streaming evaluator.
 
-- [ ] **`onnx_deployment/`** — train, `export_onnx`, load via
-  `onnxruntime`, verify parity with the torch module. Documents
-  the JVM / C++ / browser deployment path the README's
-  "Three layers of guarantee" section references. Demonstrates
-  Phase 14 ONNX.
+- [x] **`onnx_deployment/`** — small loan-approval XOR-routing
+  net trained from inline traces, exported via
+  `export_onnx`, loaded into `onnxruntime`, parity-checked
+  against the torch forward pass. Four tests pin: the
+  exported `.onnx` file is written with a JSON-serialisable
+  schema sidecar; torch and onnxruntime outputs match within
+  1e-4 across a sweep of inputs; routing decisions are
+  consistent across runtimes; the dynamic-batch axis works
+  (a model exported with `batch_size=1` accepts a batch of
+  50 at inference). Demonstrates Phase 14 ONNX export — the
+  bridge to JVM / C++ / browser / mobile / accelerator
+  deployments.
 
 - [ ] **`rest_serving/`** — `petra-train` → `petra-serve` →
   client script (in Python AND in plain `curl`) exercising
