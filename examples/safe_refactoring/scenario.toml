@@ -1,0 +1,171 @@
+# Safe refactoring — proving two structurally-different variants
+# of the same process implement the same behaviour.
+#
+# The story this scenario tells: a loan-approval process gains an
+# internal audit-log step between triage and risk assessment. The
+# refactored variant has an extra silent (τ) transition and an
+# extra place that the original variant doesn't have. Strong
+# bisimulation rejects the two as different. Weak bisimulation
+# accepts them as equivalent — the τ step is by definition not
+# observable, so external behaviour matches.
+#
+# This scenario complements `cost_ranked_refactoring/` (where
+# variants share topology and differ only in cost weights). Here
+# the variants have genuinely different *shapes* and PETRA still
+# proves them equivalent, which is the load-bearing case for
+# "refactor with confidence" in practice — real refactorings
+# usually do change the structure.
+#
+# What ships in this TOML is **Variant A** (the unrefactored
+# baseline). The test code constructs **Variant B** (with the
+# silent audit-log step inserted) by augmenting Variant A's
+# topology in Python — the same pattern `cost_ranked_refactoring`
+# uses for its second variant.
+#
+# Once both variants are constructed and trained on the same
+# trace data, the demo exercises three Phase 11 + Phase 13
+# capabilities back to back:
+#
+#   1. Weak bisimulation collapses the τ step and recognises
+#      the two variants as behaviourally equivalent (Phase 11).
+#   2. Cross-variant comparison sweeps the input domain and
+#      reports per-transition agreement rates between the two
+#      trained variants (Phase 13).
+#   3. Bootstrap CIs on each variant's distilled XOR rule
+#      confirm both variants land at the same credit-score
+#      threshold with overlapping confidence intervals
+#      (Phase 13).
+#
+# Taken together, these are what makes process refactoring as
+# low-risk as code refactoring: verify equivalence, compare
+# soft-routing behaviour, attach uncertainty to the learned
+# rules.
+
+[scenario]
+name = "safe_refactoring"
+description = "Two structurally-different variants of the same loan-approval process; PETRA proves them equivalent under weak bisimulation, compares soft routing across the input domain, and reports bootstrap CIs on each variant's distilled rule."
+
+[net]
+# Variant A — the unrefactored baseline. Plain sequence:
+#   submitted -> triage -> triaged -> assess_risk -> assessed
+#     -> (approve | decline)
+source = "inline"
+
+[[net.places]]
+id = "p_submitted"
+tokens = 1
+label = "application submitted"
+[[net.places]]
+id = "p_triaged"
+label = "application triaged"
+[[net.places]]
+id = "p_assessed"
+label = "risk assessed"
+[[net.places]]
+id = "p_approved"
+label = "approved"
+[[net.places]]
+id = "p_declined"
+label = "declined"
+
+[[net.transitions]]
+id = "t_triage"
+label = "triage"
+[[net.transitions]]
+id = "t_assess_risk"
+label = "assess"
+[[net.transitions]]
+id = "t_approve"
+label = "approve"
+[[net.transitions]]
+id = "t_decline"
+label = "decline"
+
+[[net.arcs]]
+src = "p_submitted"
+dst = "t_triage"
+[[net.arcs]]
+src = "t_triage"
+dst = "p_triaged"
+
+[[net.arcs]]
+src = "p_triaged"
+dst = "t_assess_risk"
+[[net.arcs]]
+src = "t_assess_risk"
+dst = "p_assessed"
+
+[[net.arcs]]
+src = "p_assessed"
+dst = "t_approve"
+[[net.arcs]]
+src = "t_approve"
+dst = "p_approved"
+
+[[net.arcs]]
+src = "p_assessed"
+dst = "t_decline"
+[[net.arcs]]
+src = "t_decline"
+dst = "p_declined"
+
+[traces]
+# Same trace distribution as cost_ranked_refactoring: strong
+# applications get approved, weak ones declined. Both variants
+# train on the same traces so the cross-variant comparison and
+# the bootstrap CIs are testing the genuine equivalence story
+# rather than confounding it with different training data.
+source = "inline"
+
+[[traces.inline]]
+attributes = { credit_score = "0.92" }
+events = ["triage", "assess", "approve"]
+[[traces.inline]]
+attributes = { credit_score = "0.85" }
+events = ["triage", "assess", "approve"]
+[[traces.inline]]
+attributes = { credit_score = "0.78" }
+events = ["triage", "assess", "approve"]
+[[traces.inline]]
+attributes = { credit_score = "0.95" }
+events = ["triage", "assess", "approve"]
+[[traces.inline]]
+attributes = { credit_score = "0.71" }
+events = ["triage", "assess", "approve"]
+[[traces.inline]]
+attributes = { credit_score = "0.88" }
+events = ["triage", "assess", "approve"]
+
+[[traces.inline]]
+attributes = { credit_score = "0.18" }
+events = ["triage", "assess", "decline"]
+[[traces.inline]]
+attributes = { credit_score = "0.24" }
+events = ["triage", "assess", "decline"]
+[[traces.inline]]
+attributes = { credit_score = "0.31" }
+events = ["triage", "assess", "decline"]
+[[traces.inline]]
+attributes = { credit_score = "0.08" }
+events = ["triage", "assess", "decline"]
+[[traces.inline]]
+attributes = { credit_score = "0.27" }
+events = ["triage", "assess", "decline"]
+[[traces.inline]]
+attributes = { credit_score = "0.14" }
+events = ["triage", "assess", "decline"]
+
+[training.input_marking]
+p_assessed = { attribute = "credit_score" }
+
+[training]
+steps = 800
+lr = 0.1
+sharpness = 1.0
+firing = "sigmoid"
+routing = "independent"
+num_steps = 0
+seed = 0
+
+[interpretability]
+extract_xor_rules = true

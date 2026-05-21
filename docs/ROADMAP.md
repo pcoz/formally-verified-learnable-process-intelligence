@@ -165,6 +165,7 @@ boilerplate).
 | `incident_management/` | Phase 10 — real BPI Challenge 2013 incidents log | 7,554 Volvo IT tickets, 65k events; PETRA flags traces that skip the Resolved step before Closing. |
 | `mapk_pathway/` | Phase 10 — Pathway Commons SIF import | Canonical EGF → MAPK1/3 cascade loaded as SIF; forward pass propagates activation through the full receptor → adapter → small GTPase → MAP3K → MAP2K → MAPK → transcription-factor chain. |
 | `discover_and_train_pipeline/` | Phase 12 — basic Inductive Miner + the new `net.source = "discover"` adapter keyword | Synthetic four-trace loan-approval log with sequence / parallel / exclusive-choice cuts is mined to a sound Petri net via `load_scenario`; replay invariant + training-loss convergence both pinned by the test. |
+| `safe_refactoring/` | Phase 11 weak bisimulation + Phase 13 cross-variant comparison + Phase 13 bootstrap CIs | Two structurally-different variants of a loan-approval process (Variant A; Variant B with a silent audit-log step) are proved weakly bisimilar despite differing in shape; cross-variant comparison shows hard-agreement across the credit-score domain; bootstrap CIs on each variant's distilled rule overlap. |
 
 **Framework shortcoming discovered and fixed during scenario
 validation:** `find_xor_groups` originally only detected single-input
@@ -1104,13 +1105,19 @@ roughly):
   result. README and BUSINESS_ANALYST_GUIDE cross-link to the
   new scenario from the discovery sections.
 
-- [ ] **`safe_refactoring/`** — extend the existing
-  `cost_ranked_refactoring` story with **weak bisimulation**
-  (variants that differ by an internal logging step are
-  recognised as equivalent), **cross-variant comparison**
-  (where in the input domain they agree and diverge), and
-  **bootstrap CIs** on the variants' extracted rules. Demonstrates
-  Phase 11 weak bisim + Phase 13 cross-variant + CIs.
+- [x] **`safe_refactoring/`** — Variant A (the unrefactored
+  baseline loan-approval process) plus Variant B (Variant A
+  with a silent τ audit-log transition inserted between triage
+  and risk assessment). Strong bisimulation correctly rejects
+  the pair as different; **weak bisimulation accepts them as
+  equivalent** — the headline safe-refactoring claim. Cross-
+  variant comparison sweeps the credit-score domain and pins
+  hard-agreement on every grid point. Bootstrap CIs on each
+  variant's distilled `credit_score → approve/decline` rule
+  overlap and both land in the empirical decision band.
+  Demonstrates Phase 11 weak bisim + Phase 13 cross-variant +
+  bootstrap CIs. Six tests in
+  `tests/scenarios/test_safe_refactoring.py`.
 
 - [ ] **`compliance_audit/`** — a process with regulatory
   invariants stated as **CTL** properties ("every approved

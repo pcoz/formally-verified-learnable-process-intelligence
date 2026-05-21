@@ -93,7 +93,7 @@ This matters because PETRA's substrate — the verification
 machinery, the bisimulation checker, the cost-ranked refactoring,
 the soundness and coverability analyses, everything in this
 guide — applies to *any* process in the formal sense, not just
-business processes. The fifteen end-to-end scenarios shipped in
+business processes. The sixteen end-to-end scenarios shipped in
 [`examples/`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples)
 deliberately span different domains (loan approval, distributed
 consensus, manufacturing cells, biology signalling, IT incidents,

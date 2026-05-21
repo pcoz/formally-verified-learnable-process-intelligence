@@ -60,6 +60,7 @@ nav:
   - Home: index.md
   - Business Analyst Guide: BUSINESS_ANALYST_GUIDE.md
   - Developer Manual: DEV_MANUAL.md
+  - Worked Examples: WORKED_EXAMPLES.md
   - Integration Patterns: INTEGRATION_PATTERNS.md
   - Roadmap: ROADMAP.md
   - Changelog: CHANGELOG.md

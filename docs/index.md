@@ -41,7 +41,10 @@ The same reading order works for newcomers and reviewers:
 3. **[Developer Manual](DEV_MANUAL.md)** — TOML config schema,
    adapter API, framework module reference, scenario authoring
    guide.
-4. **[API Reference](api/index.md)** — module-by-module
+4. **[Worked Examples](WORKED_EXAMPLES.md)** — the sixteen
+   end-to-end scenarios under `examples/`, sorted by the use
+   case each represents.
+5. **[API Reference](api/index.md)** — module-by-module
    auto-generated docs pulled from the docstrings of every
    public function and class.
 

@@ -43,6 +43,13 @@ breaking changes to the existing surface).
   scenario — a four-trace loan-approval-style log mined to a
   sound Petri net and trained end to end, with six pinning
   tests.
+- **`examples/safe_refactoring/`** worked-example scenario —
+  two structurally-different variants of a loan-approval
+  process (Variant B adds a silent audit-log transition).
+  Strong bisim rejects, weak bisim accepts; cross-variant
+  comparison and bootstrap CIs both pinned by six tests.
+  Demonstrates Phase 11 weak bisim + Phase 13 cross-variant
+  comparison + bootstrap CIs in a single end-to-end story.
 - **Auto-built MkDocs Material documentation site** deployed on
   every push to `main`. URL:
   <https://pcoz.github.io/formally-verified-learnable-process-intelligence/>.
@@ -55,6 +62,11 @@ breaking changes to the existing surface).
   *not* a discovery tool; Phase 12 made that wrong). The
   framing calibrates which logs PETRA's basic IM handles well
   vs. when ProM's noise filters belong as a pre-step.
+- **Worked-examples table split out** of the README into its
+  own `docs/WORKED_EXAMPLES.md`. The README keeps a short
+  intro paragraph and links to the dedicated document; the
+  MkDocs site picks the page up in the reading order under
+  the Developer Manual.
 
 ### Fixed
 

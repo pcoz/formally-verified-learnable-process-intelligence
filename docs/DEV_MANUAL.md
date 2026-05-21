@@ -869,6 +869,7 @@ Current scenarios:
 | `mapk_pathway/` | Phase 10 — loads a Pathway Commons-style SIF of the MAPK1/3 (ERK1/2) signalling cascade and runs a forward pass through the EGF → MAPK → transcription-factor flow. |
 | `cost_ranked_refactoring/` | Provably-safe refactoring via Phase 2 + `expected_cost`. |
 | `discover_and_train_pipeline/` | Phase 12 native log-to-net discovery via the basic Inductive Miner plus the adapter's `net.source = "discover"` keyword — full `discover → verify → compile → train` pipeline from a TOML config with no Petri net supplied. |
+| `safe_refactoring/` | Phase 11 weak bisimulation + Phase 13 cross-variant comparison + bootstrap CIs — two structurally-different loan-approval variants (with vs without a silent audit-log step) proved equivalent under weak bisim, soft-routing compared across the credit-score domain, distilled rules' CIs overlapping. |
 
 ---
 
@@ -966,5 +967,5 @@ python -m pytest tests/scenarios/         # only end-to-end scenarios
 python -m pytest tests/test_compiler.py   # only the compiler
 ```
 
-Current test count: 455 passing across the framework and the
+Current test count: 461 passing across the framework and the
 end-to-end scenarios.
