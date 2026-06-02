@@ -1,7 +1,7 @@
 # Version is the single source of truth for the package — read by
 # setuptools at build time (see pyproject.toml's tool.setuptools.dynamic
 # block) and exposed to users at runtime via petri_net_nn.__version__.
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 from petri_net_nn.adapter import (
     ScenarioContext,

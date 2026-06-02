@@ -6,6 +6,21 @@ follows [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-06-02
+
+Documentation-only patch. No code or API changes.
+
+### Fixed
+
+- **PyPI homepage links.** The README (which is the PyPI
+  long-description) used repo-relative links (`docs/*.md`,
+  `examples/*/`, the `LICENSE` badge). These render on PyPI but
+  resolve to `pypi.org/project/petra-nn/...` and 404. Rewrote every
+  relative link to an absolute GitHub URL (`blob/main/...` for files,
+  `tree/main/...` for example directories) so they work from the PyPI
+  page. The GitHub-rendered README is unaffected (absolute links work
+  there too).
+
 ## [0.2.0] — 2026-05-21
 
 Public-API-additive release. Minor bump (new public functions

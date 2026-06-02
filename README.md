@@ -4,10 +4,10 @@
 [![Python](https://img.shields.io/pypi/pyversions/petra-nn.svg)](https://pypi.org/project/petra-nn/)
 [![tests](https://github.com/pcoz/formally-verified-learnable-process-intelligence/actions/workflows/test.yml/badge.svg)](https://github.com/pcoz/formally-verified-learnable-process-intelligence/actions/workflows/test.yml)
 [![docs](https://github.com/pcoz/formally-verified-learnable-process-intelligence/actions/workflows/docs.yml/badge.svg)](https://pcoz.github.io/formally-verified-learnable-process-intelligence/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/LICENSE)
 
 > **Not a developer?** Start with the
-> [**Business Analyst Guide**](docs/BUSINESS_ANALYST_GUIDE.md) —
+> [**Business Analyst Guide**](https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/docs/BUSINESS_ANALYST_GUIDE.md) —
 > a no-code, no-maths walkthrough of every concept in this
 > framework (Petri nets, BPMN translation, coloured tokens,
 > bisimulation, training, rule extraction, the lot) aimed at
@@ -76,7 +76,7 @@ the name suggests:
    distributed-system protocols, manufacturing lines,
    biological signalling pathways, IT incident flows,
    laboratory procedures, multi-agent coordination, network
-   protocols. The [21 shipped scenarios](docs/WORKED_EXAMPLES.md)
+   protocols. The [21 shipped scenarios](https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/docs/WORKED_EXAMPLES.md)
    deliberately span eleven domains to make the point that
    *process* is a category that crosses industries — PETRA's
    substrate sits at that general level, not at the BPMN level.
@@ -86,8 +86,8 @@ the name suggests:
    deployment; cost ranking picks the cheaper of the
    equivalent ones. The same shift that made software's
    iterate-fast culture possible in the 1990s, applied to
-   operating-model design. The [`safe_refactoring`](examples/safe_refactoring/)
-   and [`cost_ranked_refactoring`](examples/cost_ranked_refactoring/)
+   operating-model design. The [`safe_refactoring`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/safe_refactoring/)
+   and [`cost_ranked_refactoring`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/cost_ranked_refactoring/)
    scenarios pin this end to end.
 
 3. **Regulator-grade model documentation is mechanical.**
@@ -97,7 +97,7 @@ the name suggests:
    artefacts GDPR Article 22, SR 11-7, and the EU AI Act all
    expect on automated decisioning models — are produced by
    single function calls. See
-   [`regulator_ready_credit_approval`](examples/regulator_ready_credit_approval/)
+   [`regulator_ready_credit_approval`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/regulator_ready_credit_approval/)
    for the four together on one business case.
 
 4. **The trained model deploys anywhere.** The same `.onnx`
@@ -107,9 +107,9 @@ the name suggests:
    DirectML). A FastAPI app over the same module exposes
    inference, anomaly scoring, counterfactuals, and
    sensitivity over HTTP for any non-Python consumer. Pin
-   evidence: [`onnx_deployment`](examples/onnx_deployment/)
+   evidence: [`onnx_deployment`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/onnx_deployment/)
    verifies parity-to-1e-4 against the torch module under
-   `onnxruntime`; [`rest_serving`](examples/rest_serving/)
+   `onnxruntime`; [`rest_serving`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/rest_serving/)
    exercises every REST endpoint through `TestClient`.
 
 5. **Log-only is a first-class entry path.** If you have
@@ -119,14 +119,14 @@ the name suggests:
    → train* in a single call. For very noisy logs, ProM's
    noise-filtering miners stay the recommended pre-step —
    PETRA reads their PNML output unchanged.
-   See [`discover_and_train_pipeline`](examples/discover_and_train_pipeline/).
+   See [`discover_and_train_pipeline`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/discover_and_train_pipeline/).
 
 6. **Every scenario is declarative.** No Python boilerplate
    per scenario. The 21 shipped scenarios are TOML configs
    plus a standard test harness; adding a new one is one
    TOML file plus one paired test. The framework is also
    honest about its limits — the
-   [Business Analyst Guide §17](docs/BUSINESS_ANALYST_GUIDE.md)
+   [Business Analyst Guide §17](https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/docs/BUSINESS_ANALYST_GUIDE.md)
    carries a long-form treatment of where coverability hits
    the inhibitor-arc Turing-undecidability boundary. That
    honesty is what makes §22's *substrate-for-a-self-organising-system*
@@ -196,13 +196,13 @@ fits anyway:
 
 | Domain | Why this isn't obvious | Why it fits anyway | Shipped scenarios |
 |---|---|---|---|
-| **Business processes** | BPM tools handle workflows; generic ML handles logs. The two are usually treated as separate problems with separate tools. | A BPMN diagram **is** a Petri net. The structural verification supplies interpretability and formal analysis; the logs supply the learning signal. Both at once, in one trained model. | [`cost_ranked_refactoring`](examples/cost_ranked_refactoring/), [`credit_approval_coloured`](examples/credit_approval_coloured/), [`incident_management`](examples/incident_management/) |
-| **Distributed-system protocols** | Protocols are hand-specified state machines. You write the spec; you don't *learn* it. | The spec gives the structure. Production traces show how the deployed system **actually** behaves — including attack patterns and Byzantine faults that aren't in the spec. PETRA flags the deviations. | [`distributed_consensus`](examples/distributed_consensus/) (2PC), [`network_protocol`](examples/network_protocol/) (TCP) |
-| **Multi-agent coordination** | Multi-agent systems are usually studied with game theory or reinforcement learning, not formal models. | Coordination *protocols* (contract-net, FIPA-ACL) are explicit message-passing flows. Each agent's state machine plus the inter-agent message places compose as a multi-pool Petri net naturally. | [`multi_agent_coordination`](examples/multi_agent_coordination/) |
-| **Manufacturing & supply chain** | Simulated with domain-specific tools (Simio, AnyLogic); ML in this space usually means demand forecasting, not workflow modelling. | Production lines literally **are** discrete-event token systems — parts moving between stations, batches accumulating, quality gates routing. The Phase 9 primitives (multi-token arcs, durations, inhibitor arcs) model these directly. | [`manufacturing_cell`](examples/manufacturing_cell/), [`paint_shop`](examples/paint_shop/), [`batch_packaging`](examples/batch_packaging/) |
-| **Operational coordination** | Priority dispatch and mutex feel like OS-level concerns, not "process intelligence". | Any system using these primitives has them in its control flow. Modelling at the Petri-net level lets you analyse the system's *actual* coordination against the protocol it declares. | [`priority_dispatch`](examples/priority_dispatch/), [`resource_lock`](examples/resource_lock/) |
-| **Laboratory & clinical protocols** | Lab protocols feel domain-specific (chemistry, biology) and are usually owned by proprietary LIMS systems. | A protocol is a sequenced, gated workflow with deviations to flag — same shape as a business process. The lab's electronic logs are already structured. | [`scientific_workflow`](examples/scientific_workflow/) (PCR) |
-| **Cell-biology signalling pathways** | Pathway analysis is a biology problem; ML usually means gene expression or protein structure, not "train a model of the pathway". | Reactome-style pathway databases literally store pathways as Petri-net structures: *places are molecule pools, transitions are reactions.* The activation channel is the natural soft analogue of pathway flux. | [`biological_signalling`](examples/biological_signalling/), [`mapk_pathway`](examples/mapk_pathway/) (real Pathway Commons SIF) |
+| **Business processes** | BPM tools handle workflows; generic ML handles logs. The two are usually treated as separate problems with separate tools. | A BPMN diagram **is** a Petri net. The structural verification supplies interpretability and formal analysis; the logs supply the learning signal. Both at once, in one trained model. | [`cost_ranked_refactoring`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/cost_ranked_refactoring/), [`credit_approval_coloured`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/credit_approval_coloured/), [`incident_management`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/incident_management/) |
+| **Distributed-system protocols** | Protocols are hand-specified state machines. You write the spec; you don't *learn* it. | The spec gives the structure. Production traces show how the deployed system **actually** behaves — including attack patterns and Byzantine faults that aren't in the spec. PETRA flags the deviations. | [`distributed_consensus`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/distributed_consensus/) (2PC), [`network_protocol`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/network_protocol/) (TCP) |
+| **Multi-agent coordination** | Multi-agent systems are usually studied with game theory or reinforcement learning, not formal models. | Coordination *protocols* (contract-net, FIPA-ACL) are explicit message-passing flows. Each agent's state machine plus the inter-agent message places compose as a multi-pool Petri net naturally. | [`multi_agent_coordination`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/multi_agent_coordination/) |
+| **Manufacturing & supply chain** | Simulated with domain-specific tools (Simio, AnyLogic); ML in this space usually means demand forecasting, not workflow modelling. | Production lines literally **are** discrete-event token systems — parts moving between stations, batches accumulating, quality gates routing. The Phase 9 primitives (multi-token arcs, durations, inhibitor arcs) model these directly. | [`manufacturing_cell`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/manufacturing_cell/), [`paint_shop`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/paint_shop/), [`batch_packaging`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/batch_packaging/) |
+| **Operational coordination** | Priority dispatch and mutex feel like OS-level concerns, not "process intelligence". | Any system using these primitives has them in its control flow. Modelling at the Petri-net level lets you analyse the system's *actual* coordination against the protocol it declares. | [`priority_dispatch`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/priority_dispatch/), [`resource_lock`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/resource_lock/) |
+| **Laboratory & clinical protocols** | Lab protocols feel domain-specific (chemistry, biology) and are usually owned by proprietary LIMS systems. | A protocol is a sequenced, gated workflow with deviations to flag — same shape as a business process. The lab's electronic logs are already structured. | [`scientific_workflow`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/scientific_workflow/) (PCR) |
+| **Cell-biology signalling pathways** | Pathway analysis is a biology problem; ML usually means gene expression or protein structure, not "train a model of the pathway". | Reactome-style pathway databases literally store pathways as Petri-net structures: *places are molecule pools, transitions are reactions.* The activation channel is the natural soft analogue of pathway flux. | [`biological_signalling`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/biological_signalling/), [`mapk_pathway`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/mapk_pathway/) (real Pathway Commons SIF) |
 
 The same primitives cover more ground than the shipped scenarios
 exercise: *state machines in embedded software*, *regulatory and
@@ -264,7 +264,7 @@ rule extraction, anomaly scoring, counterfactuals, sensitivity,
 bisimulation, CTL, cost ranking — applies unchanged.
 
 The same pipeline runs declaratively from a TOML config: see
-[`examples/discover_and_train_pipeline/`](examples/discover_and_train_pipeline/)
+[`examples/discover_and_train_pipeline/`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/discover_and_train_pipeline/)
 for the worked artefact — `net.source = "discover"` in the
 scenario config invokes the Inductive Miner directly from
 `load_scenario`, with end-to-end test coverage pinning
@@ -451,7 +451,7 @@ large institution would want about its own operating model:
 
 The strategic frame is *unlocking process change at organisational
 scale*. Most large institutions are stuck in the change-aversion
-equilibrium the [ROADMAP](docs/ROADMAP.md) describes: redesigns
+equilibrium the [ROADMAP](https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/docs/ROADMAP.md) describes: redesigns
 are risky, so they don't happen, so legacy variation accumulates,
 so the next redesign is even riskier. **Making refactoring safe
 is the same shift that transformed software engineering** in the
@@ -536,7 +536,7 @@ survive intact:
 | Slice | Why it survives |
 |---|---|
 | **The people side** | Stakeholder alignment, training, communications, org redesign, incentive restructuring. PETRA proves a redesign is behaviourally equivalent — *it doesn't make people accept it or rewire who reports to whom.* |
-| **Deciding which redesigns to propose** | The substrate *verifies and ranks* candidates; it doesn't *generate* them. Until candidate-generation is automated (the [ROADMAP](docs/ROADMAP.md) flags this as missing on top of PETRA), someone still has to imagine the alternatives — that's domain consulting work. |
+| **Deciding which redesigns to propose** | The substrate *verifies and ranks* candidates; it doesn't *generate* them. Until candidate-generation is automated (the [ROADMAP](https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/docs/ROADMAP.md) flags this as missing on top of PETRA), someone still has to imagine the alternatives — that's domain consulting work. |
 | **The regulated-industry layer** | Compliance sign-off, regulator engagement, model-risk governance. A formal proof helps but doesn't replace the regulatory dance — and in some jurisdictions the regulator wants a *human* on the line. |
 
 **Net:** PETRA collapses the **risk-absorption slice** of the
@@ -551,7 +551,7 @@ doesn't.
 ## Worked examples
 
 PETRA ships with **21 end-to-end scenarios** under
-[`examples/`](examples/), each a self-contained TOML
+[`examples/`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/tree/main/examples/), each a self-contained TOML
 configuration plus a paired test driving the full pipeline.
 They span deliberately different domains — provably-safe
 process refactoring, native log-to-net discovery, real BPI
@@ -566,7 +566,7 @@ The full table, sorted by use case rather than chronology of
 addition, lives in its own document so the README stays
 focused on the framing:
 
-**→ [`docs/WORKED_EXAMPLES.md`](docs/WORKED_EXAMPLES.md)**
+**→ [`docs/WORKED_EXAMPLES.md`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/docs/WORKED_EXAMPLES.md)**
 
 Run any individual scenario with
 `python -m pytest tests/scenarios/test_<scenario_name>.py`, or
@@ -597,7 +597,7 @@ The PyPI distribution name is `petra-nn` (the bare `petra` was
 already taken on PyPI); the importable Python package is
 `petri_net_nn`. For the framework-level API (build a `PetriNet`
 by hand, compile, train, extract rules, score anomalies), see
-[`docs/DEV_MANUAL.md`](docs/DEV_MANUAL.md).
+[`docs/DEV_MANUAL.md`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/docs/DEV_MANUAL.md).
 
 ---
 
@@ -640,18 +640,18 @@ main, includes an auto-generated API reference pulled from the
 package's docstrings).
 
 1. This README — what PETRA is and what to do with it.
-2. [`docs/BUSINESS_ANALYST_GUIDE.md`](docs/BUSINESS_ANALYST_GUIDE.md)
+2. [`docs/BUSINESS_ANALYST_GUIDE.md`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/docs/BUSINESS_ANALYST_GUIDE.md)
    — a no-code, no-maths walkthrough of every framework concept
    (Petri nets, BPMN translation, coloured tokens, bisimulation,
    the lot) aimed at process analysts, compliance officers, and
    project managers.
-3. [`docs/ROADMAP.md`](docs/ROADMAP.md) — framing, phase status,
+3. [`docs/ROADMAP.md`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/docs/ROADMAP.md) — framing, phase status,
    what's next.
-4. [`docs/WORKED_EXAMPLES.md`](docs/WORKED_EXAMPLES.md) — the
+4. [`docs/WORKED_EXAMPLES.md`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/docs/WORKED_EXAMPLES.md) — the
    twenty-one scenarios under `examples/` sorted by the use case
    each represents; from here drill into any individual
    scenario's own README for the long-form story.
-5. [`docs/DEV_MANUAL.md`](docs/DEV_MANUAL.md) — adapter config and
+5. [`docs/DEV_MANUAL.md`](https://github.com/pcoz/formally-verified-learnable-process-intelligence/blob/main/docs/DEV_MANUAL.md) — adapter config and
    framework API reference.
 
 ---
