@@ -984,3 +984,107 @@ def discover_and_train(
         lr=lr,
     )
     return net, module, losses
+
+
+# ---------------------------------------------------------------------------
+# Order-preserving discovery: k-tail transition system as a state machine.
+# ---------------------------------------------------------------------------
+
+
+def discover_transition_system(
+    traces: "list[XESTrace] | list[Trace]",
+    *,
+    horizon: int = 1,
+) -> PetriNet:
+    """Discover an **order-preserving** Petri net from a trace set.
+
+    The Inductive Miner abstracts a log into block structure
+    (sequence / choice / parallel / loop). That is the right
+    abstraction for workflow logs, but it deliberately forgets
+    *which order* repeated activities came in: a log of day-by-day
+    states such as ``(ENTER, FALL, FALL, EXIT)`` and
+    ``(ENTER, UP, FALL, EXIT)`` is mined into independent loops, so
+    "two FALL days in a row" is not representable in the net.
+
+    This miner keeps the order. It builds the classic
+    *transition-system* abstraction (van der Aalst et al., 2010,
+    "Process mining: a two-step approach to balance between
+    underfitting and overfitting") with a **k-tail state
+    abstraction** and emits it as a *state-machine* Petri net:
+
+      * one place per observed state, where a state is the tuple of
+        the last ``horizon`` activities (the empty tuple is the
+        start state, holding the single initial token);
+      * one labelled transition per observed ``(state, activity)``
+        pair, from that state's place to the place of the successor
+        state;
+      * one silent (τ) transition from every state in which some
+        trace ended to a single sink place ``s_end``.
+
+    ``horizon`` trades precision for generality: ``horizon=1`` is a
+    first-order (directly-follows) model; ``horizon=2`` distinguishes
+    "FALL after FALL" from "FALL after UP"; larger values approach
+    a prefix tree of the log.
+
+    Place labels carry the state (``"FALL > FALL"``; ``"start"``,
+    ``"end"``), so rules read naturally. Because every transition has
+    exactly one input and one output place, the net is a state
+    machine: it is 1-bounded, every place lies on the path of some
+    trace from the start place to ``s_end`` (option to complete),
+    and every transition was fired by some trace (no dead
+    transitions) — i.e. **sound by construction**; verify with
+    :func:`check_soundness`. The net is generally cyclic; pair it
+    with :func:`petri_net_nn.replay.train_by_replay`, which needs no
+    unrolling.
+
+    Raises ``ValueError`` for ``horizon < 1`` or an empty log.
+    """
+    if horizon < 1:
+        raise ValueError(f"horizon must be >= 1, got {horizon}")
+    log: Log = []
+    for trace in traces:
+        if isinstance(trace, XESTrace):
+            log.append(tuple(event.name for event in trace.events))
+        else:
+            log.append(tuple(trace))
+    if not log:
+        raise ValueError("cannot discover a net from an empty log")
+
+    net = PetriNet()
+    place_of: dict[tuple[str, ...], str] = {}
+
+    def place_for(state: tuple[str, ...]) -> str:
+        if state not in place_of:
+            pid = f"s_{len(place_of)}"
+            place_of[state] = pid
+            net.add_place(pid, label=" > ".join(state) if state else "start")
+        return place_of[state]
+
+    place_for(())
+    net.initial_marking[place_of[()]] = 1
+
+    edges: dict[tuple[tuple[str, ...], str], tuple[str, ...]] = {}
+    ends: list[tuple[str, ...]] = []
+    for trace in log:
+        state: tuple[str, ...] = ()
+        for activity in trace:
+            nxt = (state + (activity,))[-horizon:]
+            edges.setdefault((state, activity), nxt)
+            place_for(nxt)
+            state = nxt
+        if state not in ends:
+            ends.append(state)
+
+    for i, ((src, activity), dst) in enumerate(edges.items()):
+        tid = f"t_{i}"
+        net.add_transition(tid, label=activity)
+        net.add_arc(place_of[src], tid)
+        net.add_arc(tid, place_of[dst])
+
+    net.add_place("s_end", label="end")
+    for i, state in enumerate(ends):
+        tid = f"t_end_{i}"
+        net.add_transition(tid, label="τ", silent=True)
+        net.add_arc(place_of[state], tid)
+        net.add_arc(tid, "s_end")
+    return net
