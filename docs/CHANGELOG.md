@@ -6,6 +6,25 @@ follows [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Order-preserving discovery.** `discover_transition_system(traces,
+  horizon=k)` mines a k-tail transition system and emits it as a
+  state-machine Petri net (one place per state = last *k* activities,
+  one labelled transition per observed step, τ-exits to a single sink).
+  Sound by construction; keeps the ordering that the Inductive Miner
+  abstracts away (e.g. "FALL after FALL" vs "FALL after UP").
+- **Order-aware training by token replay.** `petri_net_nn.replay`:
+  `train_by_replay` fits the module's own arc weights / thresholds by
+  maximum likelihood of each trace's next fired transition, as a
+  softmax over the transitions enabled in the current marking (case
+  attributes via the existing `attribute_to_marking` hook). Cyclic nets
+  need no unrolling. Companions: `replay_trace`, `enabled_choices`,
+  `next_step_distribution`, `replay_surprisal`, `replay_anomaly_score`,
+  `replay_log_likelihood` (held-out evaluation) and
+  `extract_next_step_rules` / `NextStepRule` for readable ordered rules.
+  `extract_xor_rule` reads attribute crossovers at state places unchanged.
+
 ## [0.2.1] — 2026-06-02
 
 Documentation-only patch. No code or API changes.

@@ -74,6 +74,7 @@ nav:
       - SIF importer: api/sif.md
       - XES log loader: api/xes.md
       - Training and anomaly scoring: api/traces.md
+      - Order-aware replay training: api/replay.md
       - Anomaly generators + baseline: api/anomalies.md
       - Bisimulation (strong + weak): api/bisimulation.md
       - Soundness + deadlock localisation: api/soundness.md
@@ -81,7 +82,7 @@ nav:
       - CTL temporal-logic checker: api/ctl.md
       - Interpretability (rules, CIs, counterfactuals, sensitivity): api/interpretability.md
       - Reference subnets: api/subnets.md
-      - Process discovery (Inductive Miner): api/discovery.md
+      - Process discovery (Inductive Miner, transition system): api/discovery.md
       - ONNX export: api/onnx_export.md
       - Streaming evaluator: api/streaming.md
       - REST API: api/rest.md
