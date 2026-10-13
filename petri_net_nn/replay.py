@@ -60,18 +60,68 @@ def _key(m: Marking) -> tuple:
     return tuple(sorted((p, c) for p, c in m.items() if c > 0))
 
 
-def _closure(net: PetriNet, marking: Marking, max_markings: int) -> list[Marking]:
+class _NetIndex:
+    """Pre-computed presets / postsets / inhibitor sets for fast
+    token-game steps (``PetriNet.preset`` scans the whole flow relation
+    on every call, which dominates replay on nets with many arcs).
+    Semantics match ``PetriNet.is_enabled`` / ``PetriNet.fire``."""
+
+    def __init__(self, net: PetriNet) -> None:
+        self.net = net
+        self.pre = {t: {} for t in net.transitions}
+        self.post = {t: {} for t in net.transitions}
+        for src, dst in net.flow:
+            if dst in self.pre:
+                self.pre[dst][src] = net.weight(src, dst)
+            else:
+                self.post[src][dst] = net.weight(src, dst)
+        self.inhib = {t: set() for t in net.transitions}
+        for p, t in net.inhibitor_arcs:
+            self.inhib[t].add(p)
+        self.consumers: dict[str, list[str]] = {}
+        for t in sorted(net.transitions):
+            for p in self.pre[t]:
+                self.consumers.setdefault(p, []).append(t)
+        self.unconditioned = sorted(t for t in net.transitions if not self.pre[t])
+        self.silent = net.silent_transitions
+
+    def enabled(self, t: str, m: Marking) -> bool:
+        return all(m.get(p, 0) >= w for p, w in self.pre[t].items()) and all(
+            m.get(p, 0) == 0 for p in self.inhib[t]
+        )
+
+    def fire(self, t: str, m: Marking) -> Marking:
+        new = dict(m)
+        for p, w in self.pre[t].items():
+            new[p] = new.get(p, 0) - w
+            if new[p] == 0:
+                del new[p]
+        for p, w in self.post[t].items():
+            new[p] = new.get(p, 0) + w
+        return new
+
+    def candidates(self, m: Marking) -> list[str]:
+        seen, out = set(), []
+        for p in sorted(m):
+            if m[p] > 0:
+                for t in self.consumers.get(p, ()):
+                    if t not in seen:
+                        seen.add(t)
+                        out.append(t)
+        return sorted(out + [t for t in self.unconditioned if t not in seen])
+
+
+def _closure(ix: _NetIndex, marking: Marking, max_markings: int) -> list[Marking]:
     """Markings reachable from ``marking`` by firing silent transitions
     only (BFS order, ``marking`` first), capped at ``max_markings``."""
-    silent = sorted(net.silent_transitions)
     seen = {_key(marking)}
     out = [marking]
     queue = deque([marking])
     while queue and len(out) < max_markings:
         m = queue.popleft()
-        for t in silent:
-            if net.is_enabled(t, m):
-                n = net.fire(t, m)
+        for t in ix.candidates(m):
+            if t in ix.silent and ix.enabled(t, m):
+                n = ix.fire(t, m)
                 k = _key(n)
                 if k not in seen:
                     seen.add(k)
@@ -80,19 +130,22 @@ def _closure(net: PetriNet, marking: Marking, max_markings: int) -> list[Marking
     return out
 
 
+def _choices(ix: _NetIndex, marking: Marking, max_markings: int) -> dict[str, Marking]:
+    choices: dict[str, Marking] = {}
+    for m in _closure(ix, marking, max_markings):
+        for t in ix.candidates(m):
+            if t not in ix.silent and t not in choices and ix.enabled(t, m):
+                choices[t] = m
+    return choices
+
+
 def enabled_choices(
     net: PetriNet, marking: Marking, *, max_markings: int = 64
 ) -> dict[str, Marking]:
     """Visible transitions that can fire next from ``marking``, each
     mapped to the (τ-closure) marking in which it is enabled — the
     first such marking in BFS order, i.e. via the fewest τ firings."""
-    choices: dict[str, Marking] = {}
-    visible = sorted(t for t in net.transitions if t not in net.silent_transitions)
-    for m in _closure(net, marking, max_markings):
-        for t in visible:
-            if t not in choices and net.is_enabled(t, m):
-                choices[t] = m
-    return choices
+    return _choices(_NetIndex(net), marking, max_markings)
 
 
 @dataclass(frozen=True)
@@ -109,20 +162,26 @@ class ReplayStep:
 
 
 def replay_trace(
-    net: PetriNet, events: list[str], *, trace_index: int = 0, max_markings: int = 64
+    net: PetriNet,
+    events: list[str],
+    *,
+    trace_index: int = 0,
+    max_markings: int = 64,
+    _index: _NetIndex | None = None,
 ) -> tuple[list[ReplayStep], bool]:
     """Token-replay ``events`` on ``net`` from its initial marking.
 
     Returns ``(steps, fits)``. Replay stops at the first event no
     enabled transition can produce; that step is recorded with
     ``fired=None`` and ``fits`` is False."""
+    ix = _index or _NetIndex(net)
     marking: Marking = dict(net.initial_marking)
     steps: list[ReplayStep] = []
     for pos, ev in enumerate(events):
-        choices = enabled_choices(net, marking, max_markings=max_markings)
+        choices = _choices(ix, marking, max_markings)
         cands = tuple(sorted(choices))
         ctx = tuple(
-            tuple(sorted((p, choices[t].get(p, 0)) for p in net.preset(t))) for t in cands
+            tuple(sorted((p, choices[t].get(p, 0)) for p in ix.pre[t])) for t in cands
         )
         match = next(
             (t for t in cands if net.transition_labels.get(t, t) == ev), None
@@ -130,7 +189,7 @@ def replay_trace(
         steps.append(ReplayStep(trace_index, pos, ev, cands, ctx, match))
         if match is None:
             return steps, False
-        marking = net.fire(match, choices[match])
+        marking = ix.fire(match, choices[match])
     return steps, True
 
 
@@ -152,10 +211,12 @@ class _Compiled:
         self.n_fitting = 0
         self.n_unmatched = 0
         dec = 0
+        ix = _NetIndex(net)
         for ti, trace in enumerate(traces):
             values = _place_values(trace, attribute_to_marking)
             steps, fits = replay_trace(
-                net, [e.name for e in trace.events], trace_index=ti, max_markings=max_markings
+                net, [e.name for e in trace.events], trace_index=ti,
+                max_markings=max_markings, _index=ix,
             )
             self.n_fitting += fits
             for st in steps:
@@ -245,11 +306,13 @@ def next_step_distribution(
     *,
     place_values: dict[str, float] | None = None,
     max_markings: int = 64,
+    _index: _NetIndex | None = None,
 ) -> dict[str, float]:
     """``{transition: probability}`` over the visible transitions enabled
     (after τ-closure) in ``marking``, under the trained module."""
     net = module.net
-    choices = enabled_choices(net, marking, max_markings=max_markings)
+    ix = _index or _NetIndex(net)
+    choices = _choices(ix, marking, max_markings)
     if not choices:
         return {}
     values = place_values or {}
@@ -259,7 +322,7 @@ def next_step_distribution(
             s = sum(
                 module.arc_weights[module._arc_key[(p, t)]].item()
                 * m.get(p, 0) * float(values.get(p, 1.0))
-                for p in net.preset(t)
+                for p in ix.pre[t]
             )
             theta = module.transition_thresholds[module._threshold_key[t]].item()
             logits.append(net.rate(t) * module.sharpness * (s - theta))
@@ -282,16 +345,17 @@ def replay_surprisal(
     transition ``None`` and ends the replay."""
     net = module.net
     values = _place_values(trace, attribute_to_marking)
+    ix = _NetIndex(net)
     marking: Marking = dict(net.initial_marking)
     out = []
     for pos, e in enumerate(trace.events):
-        dist = next_step_distribution(module, marking, place_values=values)
+        dist = next_step_distribution(module, marking, place_values=values, _index=ix)
         match = next((t for t in sorted(dist) if net.transition_labels.get(t, t) == e.name), None)
         if match is None:
             out.append((pos, e.name, None, -unseen_logp))
             break
         out.append((pos, e.name, match, -math.log(max(dist[match], 1e-12))))
-        marking = net.fire(match, enabled_choices(net, marking)[match])
+        marking = ix.fire(match, _choices(ix, marking, 64)[match])
     return out
 
 
