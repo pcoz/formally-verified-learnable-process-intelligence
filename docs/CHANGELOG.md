@@ -4,7 +4,7 @@ All notable changes to PETRA are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); PETRA
 follows [semantic versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.3.0] — 2026-10-13
 
 ### Added
 
