@@ -65,6 +65,7 @@ from petri_net_nn.discovery import (
     Tau,
     discover_and_train,
     discover_inductive,
+    discover_transition_system,
 )
 from petri_net_nn.onnx_export import export_onnx
 from petri_net_nn.rest import build_app
@@ -74,6 +75,18 @@ from petri_net_nn.streaming import (
     StreamingEvent,
 )
 from petri_net_nn.pnml import parse_pnml, to_pnml
+from petri_net_nn.replay import (
+    NextStepRule,
+    ReplayStep,
+    enabled_choices,
+    extract_next_step_rules,
+    next_step_distribution,
+    replay_anomaly_score,
+    replay_log_likelihood,
+    replay_surprisal,
+    replay_trace,
+    train_by_replay,
+)
 from petri_net_nn.sif import parse_sif
 from petri_net_nn.soundness import (
     SoundnessReport,
@@ -199,6 +212,7 @@ __all__ = [
     "coverability_graph",
     "discover_and_train",
     "discover_inductive",
+    "discover_transition_system",
     "conj",
     "disj",
     "drop_event",
@@ -242,6 +256,16 @@ __all__ = [
     "trace_anomaly_score",
     "trace_occurrence_vector",
     "train_on_traces",
+    "train_by_replay",
+    "replay_trace",
+    "replay_surprisal",
+    "replay_anomaly_score",
+    "replay_log_likelihood",
+    "next_step_distribution",
+    "enabled_choices",
+    "extract_next_step_rules",
+    "NextStepRule",
+    "ReplayStep",
     "transition_enabled",
     "transition_sensitivity",
     "weak_bisimulation_equivalence_classes",
